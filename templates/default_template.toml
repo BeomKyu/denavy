@@ -3,7 +3,7 @@ name = "default-cycle"
 description = "CLI discomfort loop with LLM resolver and feedback capture"
 
 [template.judge]
-model = "gpt-4o-mini"
+model = "gemini/gemini-2.5-flash-lite"
 system_prompt = "You evaluate whether the proposed Denavy template fits the discomfort. Respond with JSON containing approved and reason."
 temperature = 0.0
 
@@ -13,7 +13,7 @@ config.prompt = "What discomfort would you like to resolve?"
 
 [[template.steps]]
 plugin = "simple_llm_resolver"
-config.model = "gpt-4o-mini"
+config.model = "gemini/gemini-2.5-flash-lite"
 config.prompt_template = "User discomfort: {discomfort}\nProvide a numbered action plan that accelerates relief."
 
 [[template.steps]]
