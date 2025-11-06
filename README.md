@@ -1,2 +1,76 @@
-# denavy
-"Denavy는 '주관적인 불편함'의 '입력'에서 '결과물'의 '도출', 그리고 그 '결과물'에 대한 '주관적인 평가'로 이어지는 '순환(Cycle)'을 AI를 통해 '가속(Accelerate)'하는 것을 목표로 하는 프레워크입니다."
+# denavy 2.0 — 실행 엔진과 진화 로그
+
+"Denavy는 '주관적인 불편함'의 '입력'에서 '결과물'의 '도출', 그리고 그 '결과물'에 대한 '주관적인 평가'로 이어지는 '순환(Cycle)'을 AI를 통해 '가속(Accelerate)'하는 것을 목표로 하는 프레워크입니다." — v6 진화/로그 플랜.
+
+## 프로젝트 개요
+
+- **엔진(denavy-core/):** 하이브리드 오케스트레이터. 템플릿 기반 경로(90%)와 AI 거부권을 통한 동적 경로(10%)를 모두 지원합니다.
+- **계약(denavy-common/):** Pydantic 기반 데이터 모델(StateModel, 로그 모델, 플러그인 계약)을 정의합니다.
+- **플러그인(plugins/):** 참조용 플러그인 모음. CLI 입력/피드백, LLM 해석기, SummarizerPlugin v1.0 등을 포함합니다.
+- **템플릿(templates/):** `.toml` 템플릿 정의. MVP는 `default_template.toml`을 제공합니다.
+- **로그(logs/):** 각 사이클의 3계층 로그(`events.jsonl`, `summary.json`, `index.jsonl`)가 저장됩니다.
+
+## 빠른 시작
+
+1. 가상환경을 준비하고 의존성을 설치합니다.
+	```bash
+	pip install -e .
+	```
+2. LLM 호출을 위해 원하는 공급자의 API 키를 환경 변수로 등록합니다. 예) OpenAI:
+	```bash
+	export OPENAI_API_KEY="sk-..."
+	```
+	LiteLLM은 공급자별 기본 환경 변수를 그대로 사용합니다.
+3. 템플릿을 실행합니다.
+	```bash
+	denavy run --template default_template
+	```
+
+### 동작 흐름
+
+1. 템플릿 로드 → 하이브리드 오케스트레이터가 `judge` 섹션에 정의된 LLM으로 거부권 검토 수행.
+2. 승인 시: 템플릿 단계(플러그인 리스트)를 순차 실행하여 실행 루프를 마칩니다.
+3. 거부 시: 동적 모드로 전환하여 다음에 실행할 플러그인을 사용자가 직접 선택합니다.
+4. 모든 실행 후 SummarizerPlugin v1.0이 자동으로 호출되어 3계층 로그를 생성합니다.
+
+## 템플릿 구조 예시 (`templates/default_template.toml`)
+
+```toml
+[template]
+name = "default-cycle"
+description = "cli 입력 → llm 해결 → cli 피드백"
+
+[template.judge]
+model = "gpt-4o-mini"
+system_prompt = "..."
+
+[[template.steps]]
+plugin = "cli_input"
+
+[[template.steps]]
+plugin = "simple_llm_resolver"
+
+[[template.steps]]
+plugin = "cli_feedback"
+
+[template.summary]
+plugin = "summarizer"
+```
+
+## 3계층 로그
+
+- **L0 `logs/cycle_<ID>/events.jsonl`:** 모든 플러그인 실행 이벤트를 JSON Lines로 원본 저장.
+- **L1 `logs/cycle_<ID>/summary.json`:** SummarizerPlugin v1.0이 생성한 학습용 요약.
+- **L2 `logs/index.jsonl`:** 사이클 탐색용 경량 인덱스. 태그와 요약 위치를 기록합니다.
+
+## 향후 작업(Phase 2 개요)
+
+- LogReaderPlugin, PatternFinderPlugin, EvolverPlugin 등 메타-학습 플러그인 추가.
+- `templates/evolution_template.toml` 설계하여 로그 기반 자가-진화 사이클을 구현.
+- SummarizerPlugin 고도화 및 템플릿/플러그인 자동 개선 파이프라인 구축.
+
+## 개발 참고
+
+- 기본 CLI 명령: `denavy run`, `denavy plugins`
+- 플러그인 추가 시 `plugins/registry.py`의 `register_plugin` API를 사용하세요.
+- 환경 기본값은 ASCII를 사용하고, 모든 로그는 JSON/JSONL 형식으로 기록됩니다.
