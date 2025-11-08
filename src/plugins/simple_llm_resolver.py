@@ -27,7 +27,14 @@ class SimpleLLMResolverPlugin(BasePlugin):
             "prompt_template",
             "You are an assistant helping with the following discomfort: {discomfort}. Provide a concise actionable plan.",
         )
-        user_prompt = prompt_template.format(discomfort=discomfort)
+        
+        # Gather all state values that might be used in the template
+        template_vars = {
+            "discomfort": discomfort,
+            "file_contents": state.get_value("file_contents", ""),
+        }
+        
+        user_prompt = prompt_template.format(**template_vars)
         model = config.get("model", "gpt-4o-mini")
         system_prompt = config.get(
             "system_prompt",

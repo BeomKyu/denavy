@@ -12,9 +12,21 @@ plugin = "cli_input"
 config.prompt = "What discomfort would you like to resolve?"
 
 [[template.steps]]
+plugin = "code_reader"
+config.file_paths = [
+    "src/plugins/cli_feedback.py",
+    "src/plugins/cli_input.py",
+    "src/plugins/context_aware_reolver.py",
+    "src/plugins/registry.py",
+    "src/plugins/simple_llm_resolver.py",
+    "src/plugins/summarizer.py",
+    "src/plugins/__init__.py"
+]
+
+[[template.steps]]
 plugin = "simple_llm_resolver"
 config.model = "gemini/gemini-2.5-flash-lite"
-config.prompt_template = "User discomfort: {discomfort}\nProvide a numbered action plan that accelerates relief."
+config.prompt_template = "User discomfort: {discomfort}\n\nRelevant code context:\n{file_contents}\n\nProvide a numbered action plan that accelerates relief.\nRespond in the same language as the user's discomfort."
 
 [[template.steps]]
 plugin = "cli_feedback"
