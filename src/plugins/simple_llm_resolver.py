@@ -49,7 +49,7 @@ class SimpleLLMResolverPlugin(BasePlugin):
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=config.get("temperature", 0.3),
-                max_tokens=config.get("max_tokens", 256),
+                max_tokens=config.get("max_tokens", 4096),
             )
             content = response.choices[0]["message"]["content"]
             message = f"Generated plan with {model}"

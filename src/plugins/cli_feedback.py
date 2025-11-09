@@ -20,7 +20,7 @@ class CLIFeedbackPlugin(BasePlugin):
 
     def run(self, state: CycleState, config: Dict[str, str]) -> PluginResult:
         resolution = state.get_value("proposed_resolution", "No resolution available.")
-        self.console.print(Panel.fit(resolution, title="Proposed Resolution"))
+        self.console.print(Panel(resolution, title="Proposed Resolution", ))
         prompt = config.get("prompt", "How would you rate this proposal?")
         feedback = self.console.input(f"{prompt} ")
         state_updates = {"user_feedback": feedback}
