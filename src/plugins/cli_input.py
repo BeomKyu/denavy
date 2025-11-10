@@ -17,7 +17,20 @@ class CLIInputPlugin(BasePlugin):
 
     def run(self, state: CycleState, config: dict) -> PluginResult:
         prompt = config.get("prompt", "Describe the discomfort to address")
-        response = self.console.input(f"{prompt}: ")
+        
+        self.console.print(f"{prompt}")
+        self.console.print("--- (입력을 시작하세요. 완료하려면 [Ctrl+D] 또는 [Ctrl+Z] 후 [Enter]) ---")
+        
+        lines = []
+        try:
+            while True:
+                line = input()
+                lines.append(line)
+        except EOFError:
+            pass  # 입력이 끝났음을 의미
+
+        response = "\n".join(lines)
+        
         state_updates = {"user_input": response}
         message = "Captured CLI input"
         return PluginResult(

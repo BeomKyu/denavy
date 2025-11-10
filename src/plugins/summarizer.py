@@ -67,8 +67,21 @@ class SummarizerPlugin(BasePlugin):
         highlights = []
         for event in events:
             if event.status == "success":
-                highlights.append(f"{event.plugin} succeeded")
-        return highlights[:5]
+                highlight_text = f"{event.plugin} succeeded"  # 기본 메시지
+                if event.plugin == "simple_llm_resolver" and "resolution" in event.output_payload:
+                    # simple_llm_resolver의 경우 resolution 정보를 포함
+                    resolution = event.output_payload["resolution"]
+                    # 너무 길 경우 일부만 표시하거나 요약
+                    highlight_text = f"{event.plugin}: {resolution[:100]}{'...' if len(resolution) > 100 else ''}"
+                elif event.plugin == "cli_feedback" and "feedback" in event.output_payload:
+                    # cli_feedback의 경우 feedback 정보를 포함
+                    feedback = event.output_payload["feedback"]
+                    highlight_text = f"{event.plugin}: {feedback[:100]}{'...' if len(feedback) > 100 else ''}"
+                
+                # 최대 5개의 하이라이트만 유지
+                if len(highlights) < 5:
+                    highlights.append(highlight_text)
+        return highlights
 
     def _extract_action_items(self, events: List[EventLogEntry]) -> List[str]:
         final_feedback = next((event.output_payload.get("feedback") for event in reversed(events) if event.plugin == "cli_feedback"), None)

@@ -4,7 +4,13 @@ description = "CLI discomfort loop with LLM resolver and feedback capture"
 
 [template.judge]
 model = "gemini/gemini-2.5-flash-lite"
-system_prompt = "You evaluate whether the proposed Denavy template fits the discomfort. Respond with JSON containing approved and reason."
+system_prompt = """
+You are a strict JSON-only Veto Engine.
+Your *only* output must be a single, valid JSON object.
+Do not add any text before or after the JSON.
+Do not use markdown wrappers like ```json.
+Respond with JSON containing "approved": boolean and "reason": string.
+"""
 temperature = 0.0
 
 [[template.steps]]
@@ -12,15 +18,21 @@ plugin = "cli_input"
 config.prompt = "What discomfort would you like to resolve?"
 
 [[template.steps]]
-plugin = "context_aware_resolver"
-config.directory = "src/denavy_common"
-config.exclude_dirs = ["__pycache__", ".git", "node_modules", ".venv", "venv"]
-config.exclude_patterns = [".pyc", ".pyo", ".egg-info, .env"]
+plugin = "context_collector"
+config.base_path = "src"
+config.directories = ["./denavy_common", "./denavy_core", "./plugins"]
 
 [[template.steps]]
 plugin = "simple_llm_resolver"
 config.model = "gemini/gemini-2.5-flash-lite"
-config.prompt_template = "User discomfort: {discomfort}\n\nRelevant code context:\n{file_contents}\n\nProvide a numbered action plan that accelerates relief.\nRespond in the same language as the user's discomfort."
+config.prompt_template = """
+User discomfort: {discomfort}
+
+Relevant code context:{file_contents}
+
+Provide a numbered action plan that accelerates relief.
+Respond in the same language as the user's discomfort.
+"""
 
 [[template.steps]]
 plugin = "cli_feedback"

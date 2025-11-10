@@ -21,8 +21,22 @@ class CLIFeedbackPlugin(BasePlugin):
     def run(self, state: CycleState, config: Dict[str, str]) -> PluginResult:
         resolution = state.get_value("proposed_resolution", "No resolution available.")
         self.console.print(Panel(resolution, title="Proposed Resolution", ))
+        
         prompt = config.get("prompt", "How would you rate this proposal?")
-        feedback = self.console.input(f"{prompt} ")
+        
+        self.console.print(f"{prompt}")
+        self.console.print("--- (피드백을 입력하세요. 완료하려면 [Ctrl+D] 또는 [Ctrl+Z] 후 [Enter]) ---")
+        
+        lines = []
+        try:
+            while True:
+                line = input()
+                lines.append(line)
+        except EOFError:
+            pass  # 입력이 끝났음을 의미
+
+        feedback = "\n".join(lines)
+        
         state_updates = {"user_feedback": feedback}
         message = "Recorded feedback"
         return PluginResult(
