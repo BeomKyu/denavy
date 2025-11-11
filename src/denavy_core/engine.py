@@ -113,12 +113,14 @@ class HybridOrchestrator:
         plugin = self._resolve_plugin(plugin_name)
         started = datetime.utcnow()
         input_payload = {"config": config, "state_snapshot": state.context.copy()}
+        tags: List[str] = []
         try:
             result = plugin.run(state, config)
             self._apply_plugin_result(result, state)
             status = result.status
             message = result.message
             output_payload = result.output
+            tags = result.tags
         except PluginExecutionError as exc:
             status = "error"
             message = str(exc)
@@ -135,6 +137,7 @@ class HybridOrchestrator:
             input_payload=input_payload,
             output_payload=output_payload,
             message=message,
+            tags=tags,
         )
         events.append(event)
         self.console.print(f"[{status}] {plugin.name}: {message or 'ok'}")

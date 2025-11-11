@@ -41,7 +41,7 @@ class CLIFeedbackPlugin(BasePlugin):
         message = "Recorded feedback"
         return PluginResult(
             status="success",
-            output={"feedback": feedback},
+            output={"user_feedback": feedback},
             state_updates=state_updates,
             tags=["feedback", "cli"],
             message=message,

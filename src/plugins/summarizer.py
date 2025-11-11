@@ -25,8 +25,10 @@ class SummarizerPlugin(BasePlugin):
         events = config.get("events") or []
         if not events:
             raise PluginExecutionError("Summarizer requires events in config")
+        
+        max_len = config.get("max_highlight_len", 100)
         cast_events = list(self._as_event_iterable(events))
-        highlights = self._build_highlights(cast_events)
+        highlights = self._build_highlights(cast_events, max_len)
         action_items = self._extract_action_items(cast_events)
 
         headline = state.get_value("user_input", "Denavy cycle summary")[:120]
@@ -63,28 +65,24 @@ class SummarizerPlugin(BasePlugin):
             if isinstance(event, EventLogEntry):
                 yield event
 
-    def _build_highlights(self, events: List[EventLogEntry]) -> List[str]:
+    def _build_highlights(self, events: List[EventLogEntry], max_len: int) -> List[str]: # <--- max_len 인자 추가
         highlights = []
         for event in events:
             if event.status == "success":
-                highlight_text = f"{event.plugin} succeeded"  # 기본 메시지
+                highlight_text = f"{event.plugin} succeeded"
                 if event.plugin == "simple_llm_resolver" and "resolution" in event.output_payload:
-                    # simple_llm_resolver의 경우 resolution 정보를 포함
                     resolution = event.output_payload["resolution"]
-                    # 너무 길 경우 일부만 표시하거나 요약
-                    highlight_text = f"{event.plugin}: {resolution[:100]}{'...' if len(resolution) > 100 else ''}"
+                    highlight_text = f"{event.plugin}: {resolution[:max_len]}{'...' if len(resolution) > max_len else ''}"
                 elif event.plugin == "cli_feedback" and "feedback" in event.output_payload:
-                    # cli_feedback의 경우 feedback 정보를 포함
                     feedback = event.output_payload["feedback"]
-                    highlight_text = f"{event.plugin}: {feedback[:100]}{'...' if len(feedback) > 100 else ''}"
-                
-                # 최대 5개의 하이라이트만 유지
+                    highlight_text = f"{event.plugin}: {feedback[:max_len]}{'...' if len(feedback) > max_len else ''}"
+
                 if len(highlights) < 5:
                     highlights.append(highlight_text)
         return highlights
 
     def _extract_action_items(self, events: List[EventLogEntry]) -> List[str]:
-        final_feedback = next((event.output_payload.get("feedback") for event in reversed(events) if event.plugin == "cli_feedback"), None)
+        final_feedback = next((event.output_payload.get("user_feedback") for event in reversed(events) if event.plugin == "cli_feedback"), None)
         if final_feedback:
             return [f"Follow up on feedback: {final_feedback}"]
         return []

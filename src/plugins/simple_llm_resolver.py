@@ -54,7 +54,16 @@ class SimpleLLMResolverPlugin(BasePlugin):
             content = response.choices[0]["message"]["content"]
             message = f"Generated plan with {model}"
         except Exception as exc:  # noqa: BLE001
-            content = self._fallback(discomfort)
+            default_fallback = (
+                "1. Clarify the discomfort: '{discomfort}'\n"
+                "2. List the constraints and desired outcomes\n"
+                "3. Draft a minimum viable test to validate improvements\n"
+                "4. Schedule a feedback check in 24 hours"
+            )
+            fallback_template = config.get("fallback_plan", default_fallback)
+            
+            content = fallback_template.format(discomfort=discomfort)
+            
             message = f"Fallback resolution: {exc}"
 
         state_updates = {"proposed_resolution": content}
@@ -65,15 +74,6 @@ class SimpleLLMResolverPlugin(BasePlugin):
             tags=["llm", "resolution"],
             message=message,
         )
-
-    def _fallback(self, discomfort: str) -> str:
-        baseline = [
-            f"Clarify the discomfort: '{discomfort}'",
-            "List the constraints and desired outcomes",
-            "Draft a minimum viable test to validate improvements",
-            "Schedule a feedback check in 24 hours",
-        ]
-        return "\n".join(f"{idx + 1}. {step}" for idx, step in enumerate(baseline))
 
 
 register_plugin(SimpleLLMResolverPlugin)

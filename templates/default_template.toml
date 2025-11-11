@@ -9,7 +9,10 @@ You are a strict JSON-only Veto Engine.
 Your *only* output must be a single, valid JSON object.
 Do not add any text before or after the JSON.
 Do not use markdown wrappers like ```json.
-Respond with JSON containing "approved": boolean and "reason": string.
+Review the user's discomfort and the proposed template steps.
+Respond with JSON containing:
+- "approved": boolean (true if the plan is good, false if it's irrelevant or bad)
+- "reason": A short string explaining your decision.
 """
 temperature = 0.0
 
@@ -20,7 +23,7 @@ config.prompt = "What discomfort would you like to resolve?"
 [[template.steps]]
 plugin = "context_collector"
 config.base_path = "src"
-config.directories = ["./denavy_common", "./denavy_core", "./plugins"]
+config.directories = []
 
 [[template.steps]]
 plugin = "simple_llm_resolver"
@@ -32,6 +35,12 @@ Relevant code context:{file_contents}
 
 Provide a numbered action plan that accelerates relief.
 Respond in the same language as the user's discomfort.
+"""
+config.fallback_plan = """
+LLM 호출에 실패했습니다. 다음을 확인하세요:
+1. API 키가 올바르게 설정되었습니까?
+2. 네트워크 연결이 안정적입니까?
+3. 사용자의 불편함: {discomfort}
 """
 
 [[template.steps]]

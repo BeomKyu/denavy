@@ -43,6 +43,7 @@ class EventLogEntry(BaseModel):
     input_payload: Dict[str, Any] = Field(default_factory=dict)
     output_payload: Dict[str, Any] = Field(default_factory=dict)
     message: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
 
 
 class SummaryDocument(BaseModel):
