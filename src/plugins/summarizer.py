@@ -73,8 +73,8 @@ class SummarizerPlugin(BasePlugin):
                 if event.plugin == "simple_llm_resolver" and "resolution" in event.output_payload:
                     resolution = event.output_payload["resolution"]
                     highlight_text = f"{event.plugin}: {resolution[:max_len]}{'...' if len(resolution) > max_len else ''}"
-                elif event.plugin == "cli_feedback" and "feedback" in event.output_payload:
-                    feedback = event.output_payload["feedback"]
+                elif event.plugin == "cli_feedback" and "user_feedback" in event.output_payload:
+                    feedback = event.output_payload["user_feedback"]
                     highlight_text = f"{event.plugin}: {feedback[:max_len]}{'...' if len(feedback) > max_len else ''}"
 
                 if len(highlights) < 5:
@@ -82,10 +82,28 @@ class SummarizerPlugin(BasePlugin):
         return highlights
 
     def _extract_action_items(self, events: List[EventLogEntry]) -> List[str]:
-        final_feedback = next((event.output_payload.get("user_feedback") for event in reversed(events) if event.plugin == "cli_feedback"), None)
+        action_items = []
+
+        resolution = next((
+            event.output_payload.get("resolution") 
+            for event in reversed(events) 
+            if event.plugin == "simple_llm_resolver" and event.output_payload.get("resolution")
+        ), None)
+        
+        if resolution:
+            summary_resolution = f"Review proposed plan: {resolution[:150]}{'...' if len(resolution) > 150 else ''}"
+            action_items.append(summary_resolution)
+
+        final_feedback = next((
+            event.output_payload.get("user_feedback") 
+            for event in reversed(events) 
+            if event.plugin == "cli_feedback" and event.output_payload.get("user_feedback")
+        ), None)
+        
         if final_feedback:
-            return [f"Follow up on feedback: {final_feedback}"]
-        return []
+            action_items.append(f"Follow up on feedback: {final_feedback}")
+
+        return action_items
 
 
 register_plugin(SummarizerPlugin)

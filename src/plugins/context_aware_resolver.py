@@ -33,25 +33,25 @@ class ContextCollectorPlugin(BasePlugin):
         'exclude_patterns'를 읽어 파일 내용을 결합합니다.
         """
         
-        # 1. 설정값 읽기
         base_path = pathlib.Path(config.get("base_path", "."))
         
-        # 사용자가 요청한 특정 폴더, 파일, 포함 패턴
+        user_configured_collection = (
+            "directories" in config or
+            "files" in config or
+            "include_patterns" in config
+        )
         directories: List[str] = config.get("directories", [])
         files: List[str] = config.get("files", [])
         include_patterns: List[str] = config.get("include_patterns", [])
         
-        # 제외할 패턴 목록 (기본값: 일반적인 제외 목록)
         default_exclude = [
             "**/__pycache__/**", "**/.git/**", "**/node_modules/**",
             "**/.venv/**", "**/*.pyc", "**/*.pyo", "**/*.egg-info/**", ".env"
         ]
         exclude_patterns: List[str] = config.get("exclude_patterns", default_exclude)
 
-        # 2. 다양한 소스에서 파일 수집 (중복 제거를 위해 Set 사용)
         files_to_read: Set[pathlib.Path] = set()
 
-        # 2a. 'directories' (폴더 목록) 처리: 하위 모든 파일 재귀 탐색
         for dir_name in directories:
             dir_path = base_path / dir_name
             if dir_path.is_dir():
@@ -59,15 +59,12 @@ class ContextCollectorPlugin(BasePlugin):
                     if path.is_file():
                         files_to_read.add(path)
 
-        # 2b. 'files' (파일 목록) 처리
         for file_name in files:
             file_path = base_path / file_name
             if file_path.is_file():
                 files_to_read.add(file_path)
 
-        # 2c. 'include_patterns' (Glob 패턴) 처리
-        # 만약 위 3가지가 모두 비어있다면, '모두'를 의미하도록 **/*를 기본값으로 사용
-        if not directories and not files and not include_patterns:
+        if not user_configured_collection:
             include_patterns = ["**/*"]
             
         for pattern in include_patterns:
@@ -75,17 +72,14 @@ class ContextCollectorPlugin(BasePlugin):
                 if path.is_file():
                     files_to_read.add(path)
 
-        # 3. 제외(exclude) 패턴 처리
         excluded_files: Set[pathlib.Path] = set()
         for pattern in exclude_patterns:
             for path in base_path.glob(pattern):
                 if path.is_file():
                     excluded_files.add(path)
 
-        # 포함된 파일에서 제외된 파일을 뺍니다.
         final_files_to_read = sorted(list(files_to_read - excluded_files))
 
-        # 4. 파일 내용 읽기
         combined_content = []
         for path in final_files_to_read:
             self._read_and_append(path, base_path, combined_content)

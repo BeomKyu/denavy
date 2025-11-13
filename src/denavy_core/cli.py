@@ -8,8 +8,6 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-import plugins  # noqa: F401  # ensure built-in plugins register themselves
-
 from .engine import HybridOrchestrator
 from plugins.registry import list_plugins
 

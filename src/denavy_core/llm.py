@@ -13,10 +13,14 @@ from litellm import completion
 from litellm.utils import Choices
 
 DEFAULT_DECISION_PROMPT = """
-You are the Denavy template judge. Review the proposed execution template and decide
-whether it should run as-is. Respond with a JSON object containing:
-- approved: boolean
-- reason: short sentence explaining your choice
+You are a strict JSON-only Veto Engine.
+Your *only* output must be a single, valid JSON object.
+Do not add any text before or after the JSON.
+Do not use markdown wrappers like ```json.
+Review the user's discomfort and the proposed template steps.
+Respond with JSON containing:
+- "approved": boolean (true if the plan is good, false if it's irrelevant or bad)
+- "reason": A short string explaining your decision.
 """.strip()
 
 
