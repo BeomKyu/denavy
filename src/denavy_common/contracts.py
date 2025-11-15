@@ -14,15 +14,24 @@ class CycleState(BaseModel):
 
     cycle_id: str
     created_at: datetime
-    context: Dict[str, Any] = Field(default_factory=dict)
+    
+    user_input: Optional[str] = None
+    file_contents: Optional[str] = None
+    proposed_resolution: Optional[str] = None
+    user_feedback: Optional[str] = None
+    
+    scratchpad: Dict[str, Any] = Field(default_factory=dict)
+    
     notes: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
 
-    def set_value(self, key: str, value: Any) -> None:
-        self.context[key] = value
+    def set_scratchpad(self, key: str, value: Any) -> None:
+        """임시/사용자 정의 데이터를 스크래치패드에 저장합니다."""
+        self.scratchpad[key] = value
 
-    def get_value(self, key: str, default: Any = None) -> Any:
-        return self.context.get(key, default)
+    def get_scratchpad(self, key: str, default: Any = None) -> Any:
+        """스크래치패드에서 임시/사용자 정의 데이터를 조회합니다."""
+        return self.scratchpad.get(key, default)
 
     def add_note(self, note: str) -> None:
         self.notes.append(note)
@@ -72,7 +81,14 @@ class PluginResult(BaseModel):
 
     status: Literal["success", "error"] = "success"
     output: Dict[str, Any] = Field(default_factory=dict)
-    state_updates: Dict[str, Any] = Field(default_factory=dict)
+    
+    user_input: Optional[str] = None
+    file_contents: Optional[str] = None
+    proposed_resolution: Optional[str] = None
+    user_feedback: Optional[str] = None
+    
+    scratchpad_updates: Dict[str, Any] = Field(default_factory=dict)
+
     tags: List[str] = Field(default_factory=list)
     message: Optional[str] = None
 
@@ -88,7 +104,7 @@ class JudgeDecision(BaseModel):
 class PluginConfig(BaseModel):
     """Configuration section for a template-defined plugin step."""
 
-    name: str
+    plugin: str
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -106,4 +122,27 @@ class BasePlugin(ABC):
         """Flag dynamic-mode compatibility for discovery tooling."""
 
         return True
+    
+class PluginExecutionError(Exception):
+    """Custom exception for plugins to signal a critical failure."""
 
+class JudgeConfig(BaseModel):
+    """Configuration for the VetoEngine (Judge)."""
+    model: str
+    system_prompt: Optional[str] = None
+    temperature: float = 0.0
+
+
+class SummaryConfig(BaseModel):
+    """Configuration for the final summarizer step."""
+    plugin: str
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Template(BaseModel):
+    """Pydantic model for a .toml template file."""
+    name: str
+    description: str = ""
+    judge: Optional[JudgeConfig] = None
+    steps: List[PluginConfig] = Field(default_factory=list)
+    summary: Optional[SummaryConfig] = None

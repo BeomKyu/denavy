@@ -1,45 +1,46 @@
-"""CLI plugin to capture the user's discomfort statement."""
+"""Captures multi-line user input from the CLI."""
 
 from __future__ import annotations
-
-from rich.console import Console
+from typing import Any, Dict
 
 from denavy_common import BasePlugin, CycleState, PluginResult
 from .registry import register_plugin
 
 
-class CLIInputPlugin(BasePlugin):
-    name = "cli_input"
-    description = "Collects the cycle's starting discomfort via the terminal."
-
-    def __init__(self) -> None:
-        self.console = Console()
-
-    def run(self, state: CycleState, config: dict) -> PluginResult:
-        prompt = config.get("prompt", "Describe the discomfort to address")
-        
-        self.console.print(f"{prompt}")
-        self.console.print("--- (입력을 시작하세요. 완료하려면 [Ctrl+D] 또는 [Ctrl+Z] 후 [Enter]) ---")
-        
-        lines = []
+def _read_multi_line_input(prompt: str) -> str:
+    """Read multi-line input, ending with Ctrl+D or Ctrl+Z."""
+    print(prompt)
+    print("--- (입력을 시작하세요. 완료하려면 [Ctrl+D] 또는 [Ctrl+Z] 후 [Enter]) ---")
+    lines = []
+    while True:
         try:
-            while True:
-                line = input()
-                lines.append(line)
+            line = input()
+            lines.append(line)
         except EOFError:
-            pass  # 입력이 끝났음을 의미
+            print("^Z")
+            break
+    return "\n".join(lines)
 
-        response = "\n".join(lines)
+
+class CliInputPlugin(BasePlugin):
+    name = "cli_input"
+    description = "Captures multi-line input from the user CLI."
+
+    def run(self, state: CycleState, config: Dict[str, Any]) -> PluginResult:
+        prompt_text = config.get("prompt", "Input:")
         
-        state_updates = {"user_input": response}
-        message = "Captured CLI input"
+        try:
+            user_input = _read_multi_line_input(prompt_text)
+        except EOFError:
+            return PluginResult(status="error", message="Input aborted.")
+        
         return PluginResult(
             status="success",
-            output={"user_input": response},
-            state_updates=state_updates,
-            tags=["cli", "input"],
-            message=message,
+            output={"user_input": user_input},
+            
+            user_input=user_input,
+            
+            message="Captured CLI input",
         )
 
-
-register_plugin(CLIInputPlugin)
+register_plugin(CliInputPlugin)

@@ -20,7 +20,6 @@ class ContextCollectorPlugin(BasePlugin):
         """파일을 읽고 combined_content 리스트에 추가합니다."""
         try:
             content = path.read_text(encoding='utf-8')
-            # base_path 기준 상대 경로 사용
             relative_path = path.relative_to(base_path)
             combined_content.append(f"=== {relative_path} ===\n{content}\n")
         except Exception as e:
@@ -90,7 +89,9 @@ class ContextCollectorPlugin(BasePlugin):
         return PluginResult(
             status="success",
             output={"file_contents": file_contents},
-            state_updates={"file_contents": file_contents},
+            
+            file_contents=file_contents,
+            
             message=message,
         )
     

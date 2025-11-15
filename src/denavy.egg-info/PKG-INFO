@@ -8,6 +8,7 @@ Requires-Dist: pydantic>=2.6
 Requires-Dist: typer>=0.12
 Requires-Dist: litellm>=1.37
 Requires-Dist: rich>=13.7
+Requires-Dist: toml>=0.10.2
 
 # denavy 2.0 — 실행 엔진과 진화 로그
 

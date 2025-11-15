@@ -19,7 +19,8 @@ class SimpleLLMResolverPlugin(BasePlugin):
         self.console = Console()
 
     def run(self, state: CycleState, config: Dict[str, Any]) -> PluginResult:
-        discomfort = state.get_value("user_input", "")
+        
+        discomfort = state.user_input
         if not discomfort:
             raise PluginExecutionError("No user_input present in state; run cli_input first")
 
@@ -28,10 +29,9 @@ class SimpleLLMResolverPlugin(BasePlugin):
             "You are an assistant helping with the following discomfort: {discomfort}. Provide a concise actionable plan.",
         )
         
-        # Gather all state values that might be used in the template
         template_vars = {
             "discomfort": discomfort,
-            "file_contents": state.get_value("file_contents", ""),
+            "file_contents": state.file_contents or "",
         }
         
         user_prompt = prompt_template.format(**template_vars)
@@ -66,11 +66,12 @@ class SimpleLLMResolverPlugin(BasePlugin):
             
             message = f"Fallback resolution: {exc}"
 
-        state_updates = {"proposed_resolution": content}
         return PluginResult(
             status="success",
             output={"resolution": content},
-            state_updates=state_updates,
+            
+            proposed_resolution=content,
+            
             tags=["llm", "resolution"],
             message=message,
         )

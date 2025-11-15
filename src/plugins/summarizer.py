@@ -1,9 +1,10 @@
-"""Naive summariser that creates Denavy's tiered logs."""
+"""LLM-powered summariser that creates Denavy's tiered logs."""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from denavy_common import (
     BasePlugin,
@@ -15,27 +16,85 @@ from denavy_common import (
     SummaryDocument,
 )
 from .registry import register_plugin
+from litellm import completion
+
+DEFAULT_SUMMARY_PROMPT = """
+You are a log summarizer for the Denavy system. You will receive a raw event log
+from a completed cycle. Your task is to analyze the log and provide a concise
+summary in JSON format.
+
+The log format is: timestamp | plugin_name | status | message
+
+Analyze the entire flow, from user_input to the final feedback.
+Your *only* output must be a single, valid JSON object.
+Do not add any text before or after the JSON.
+Do not use markdown wrappers like ```json.
+
+Respond with JSON containing:
+- "headline": A short (max 120 chars) and descriptive title for the *entire cycle*,
+              based on the user's initial discomfort or the final outcome.
+- "highlights": A list of 3-5 strings. Each string should be a key event
+                or outcome from the log (e.g., the plan proposed, the
+                feedback given, or a critical error).
+""".strip()
 
 
 class SummarizerPlugin(BasePlugin):
     name = "summarizer"
     description = "Produces the L1 summary and L2 index artifacts for a cycle."
 
+    def _generate_llm_summary(self, raw_log_text: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Call an LLM to generate headline and highlights."""
+        model = config.get("model")
+        if not model:
+            return {}
+
+        messages = [
+            {"role": "system", "content": DEFAULT_SUMMARY_PROMPT},
+            {"role": "user", "content": f"Here is the log:\n{raw_log_text}"},
+        ]
+        
+        llm_kwargs = {
+            "model": model,
+            "messages": messages,
+            "temperature": config.get("temperature", 0.1),
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            response = completion(**llm_kwargs)
+            message = response.choices[0].get("message", {}).get("content", "{}")
+            return json.loads(message)
+        except Exception as e:
+            print(f"[WARN] Summarizer LLM failed: {e}")
+            return {}
+
     def run(self, state: CycleState, config: dict) -> PluginResult:
         events = config.get("events") or []
         if not events:
             raise PluginExecutionError("Summarizer requires events in config")
         
-        max_len = config.get("max_highlight_len", 100)
         cast_events = list(self._as_event_iterable(events))
-        highlights = self._build_highlights(cast_events, max_len)
-        action_items = self._extract_action_items(cast_events)
-
-        headline = state.get_value("user_input", "Denavy cycle summary")[:120]
+        
         raw_lines = [
             f"{event.timestamp.isoformat()} | {event.plugin} | {event.status} | {event.message or ''}"
             for event in cast_events
         ]
+        raw_text = "\n".join(raw_lines)
+
+        llm_summary = self._generate_llm_summary(raw_text, config)
+
+        action_items = self._extract_action_items(cast_events)
+        
+        fallback_headline = (state.user_input or "Denavy cycle summary")[:120]
+        
+        fallback_highlights = self._build_highlights(
+            cast_events, 
+            config.get("max_highlight_len", 100)
+        )
+
+        headline = llm_summary.get("headline", fallback_headline)
+        highlights = llm_summary.get("highlights", fallback_highlights)
 
         summary = SummaryDocument(
             cycle_id=state.cycle_id,
@@ -43,7 +102,7 @@ class SummarizerPlugin(BasePlugin):
             headline=headline,
             highlights=highlights,
             action_items=action_items,
-            raw_text="\n".join(raw_lines),
+            raw_text=raw_text,
         )
 
         index_record = IndexRecord(
@@ -57,7 +116,7 @@ class SummarizerPlugin(BasePlugin):
         return PluginResult(
             status="success",
             output={"summary": summary, "index": index_record},
-            message="Generated tiered logs",
+            message="Generated tiered logs (LLM-assisted)",
         )
 
     def _as_event_iterable(self, events: Iterable[EventLogEntry]) -> Iterable[EventLogEntry]:
@@ -65,7 +124,7 @@ class SummarizerPlugin(BasePlugin):
             if isinstance(event, EventLogEntry):
                 yield event
 
-    def _build_highlights(self, events: List[EventLogEntry], max_len: int) -> List[str]: # <--- max_len 인자 추가
+    def _build_highlights(self, events: List[EventLogEntry], max_len: int) -> List[str]:
         highlights = []
         for event in events:
             if event.status == "success":

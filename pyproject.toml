@@ -12,7 +12,8 @@ dependencies = [
     "pydantic>=2.6",
     "typer>=0.12",
     "litellm>=1.37",
-    "rich>=13.7"
+    "rich>=13.7",
+    "toml>=0.10.2"
 ]
 
 [project.scripts]

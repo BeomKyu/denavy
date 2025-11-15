@@ -1,189 +1,241 @@
-"""Hybrid orchestrator implementing the Denavy v6 hypothesis."""
+"""Core orchestration logic."""
 
 from __future__ import annotations
 
+import toml
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Prompt
 
 from denavy_common import (
     BasePlugin,
     CycleState,
     EventLogEntry,
-    IndexRecord,
     JudgeDecision,
-    PluginExecutionError,
+    PluginConfig,
     PluginResult,
-    SummaryDocument,
+    Template,
 )
+from plugins.registry import get_plugin, list_plugins
 
 from .llm import VetoEngine
-from .log_writer import CycleLogWriter
-from .template_loader import TemplateLoader
-from plugins.registry import get_plugin
+from .log_writer import LogWriter
+from .utils import create_cycle_id, render_event
 
 
 class HybridOrchestrator:
-    """Coordinates template execution, veto checks, and logging."""
+    """Manages template loading, plugin execution, and state."""
 
     def __init__(
         self,
-        templates_dir: Path | str = Path("templates"),
-        logs_dir: Path | str = Path("logs"),
-        console: Optional[Console] = None,
+        templates_dir: Path,
+        logs_dir: Path,
+        console: Console,
     ) -> None:
-        self.templates_dir = Path(templates_dir)
-        self.logs_dir = Path(logs_dir)
-        self.console = console or Console()
-        self.template_loader = TemplateLoader(self.templates_dir)
-        self.log_writer = CycleLogWriter(self.logs_dir)
+        self.templates_dir = templates_dir
+        self.logs_dir = logs_dir
+        self.console = console
 
-    def run(self, template_name: str = "default_template", cycle_id: Optional[str] = None) -> None:
-        template_doc = self.template_loader.load(template_name)
-        cycle_identifier = cycle_id or datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-        state = CycleState(cycle_id=cycle_identifier, created_at=datetime.utcnow())
-        events: List[EventLogEntry] = []
-
-        decision = self._evaluate_template(template_doc, state)
-        if decision.approved:
-            self.console.print(Panel.fit(f"Template approved: {decision.reason}", title="Veto Result"))
-            self._run_sequenced_steps(template_doc, state, events)
-        else:
-            self.console.print(Panel.fit(f"Template vetoed: {decision.reason}", title="Veto Result", style="yellow"))
-            self._run_dynamic_mode(state, events)
-
-        summary, index_record = self._generate_logs(template_doc, state, events)
-        self.log_writer.write(events, summary, index_record)
-        self.console.print(Panel.fit(f"Cycle {state.cycle_id} completed", title="denavy"))
-
-    def _evaluate_template(self, template_doc: Dict[str, Any], state: CycleState) -> JudgeDecision:
-        judge_config = template_doc["template"].get("judge")
-        if not judge_config:
-            return JudgeDecision(approved=True, reason="No judge configured; default approve")
-
-        prompt = self._render_plan_prompt(template_doc, state)
-        try:
-            veto = VetoEngine(
-                model=judge_config.get("model", "gpt-4o-mini"),
-                system_prompt=judge_config.get("system_prompt"),
-                temperature=judge_config.get("temperature", 0),
-            )
-            response = veto.decide(prompt)
-            approved = bool(response.get("approved", True))
-            reason = str(response.get("reason", "Judge did not provide a reason"))
-            return JudgeDecision(approved=approved, reason=reason, raw_response=response)
-        except Exception as exc:  # noqa: BLE001
-            self.console.print(Panel.fit(f"Judge invocation failed: {exc}", title="Veto", style="red"))
-            return JudgeDecision(approved=True, reason="Judge unavailable; fallback to approve")
-
-    def _render_plan_prompt(self, template_doc: Dict[str, Any], state: CycleState) -> str:
-        steps = template_doc["template"].get("steps", [])
-        step_lines = [f"- {idx + 1}. {step.get('plugin')}" for idx, step in enumerate(steps)]
-        tags = ", ".join(state.tags) or "[no tags yet]"
-        return "\n".join(
-            [
-                f"Cycle: {state.cycle_id}",
-                f"Existing tags: {tags}",
-                "Proposed pipeline:",
-                *step_lines,
-            ]
+    def _create_cycle_state(self, cycle_id: str) -> CycleState:
+        """Initialize a new, empty state for a cycle."""
+        return CycleState(
+            cycle_id=cycle_id,
+            created_at=datetime.utcnow(),
         )
 
-    def _run_sequenced_steps(self, template_doc: Dict[str, Any], state: CycleState, events: List[EventLogEntry]) -> None:
-        for raw_step in template_doc["template"].get("steps", []):
-            plugin_name = raw_step.get("plugin")
-            config = raw_step.get("config", {})
-            self._invoke_plugin(plugin_name, config, state, events)
-
-    def _run_dynamic_mode(self, state: CycleState, events: List[EventLogEntry]) -> None:
-        self.console.print(Panel.fit("Entering dynamic mode. Type 'done' to finish.", title="Dynamic Mode", style="cyan"))
-        while True:
-            choice = self.console.input("Pick next plugin (or 'done'): ").strip()
-            if not choice:
-                continue
-            if choice.lower() == "done":
-                break
-            config: Dict[str, Any] = {}
-            self._invoke_plugin(choice, config, state, events)
-
-    def _invoke_plugin(self, plugin_name: str, config: Dict[str, Any], state: CycleState, events: List[EventLogEntry]) -> None:
-        plugin = self._resolve_plugin(plugin_name)
-        started = datetime.utcnow()
-        input_payload = {"config": config, "state_snapshot": state.context.copy()}
-        tags: List[str] = []
+    def _load_template(self, template_name: str) -> Template:
+        """Load and parse a TOML template file."""
+        template_file = (self.templates_dir / f"{template_name}.toml").resolve()
+        if not template_file.is_file():
+            raise FileNotFoundError(f"Template '{template_name}' not found at {template_file}")
+        
         try:
-            result = plugin.run(state, config)
-            self._apply_plugin_result(result, state)
-            status = result.status
-            message = result.message
-            output_payload = result.output
-            tags = result.tags
-        except PluginExecutionError as exc:
-            status = "error"
-            message = str(exc)
-            output_payload = {}
-        except Exception as exc:  # noqa: BLE001
-            status = "error"
-            message = f"Unexpected failure: {exc}"
-            output_payload = {}
+            data = toml.load(template_file)
+            return Template.model_validate(data["template"])
+        except Exception as e:
+            raise ValueError(f"Failed to load or parse template {template_file}: {e}")
+
+    def _render_plan_prompt(self, steps: list[PluginConfig], state: CycleState) -> str:
+        """Generate the prompt for the VetoEngine, now including user input."""
+        
+        plan_steps = "\n".join(f"- Step: {step.plugin}" for step in steps)
+        
+        discomfort = state.user_input
+        
+        prompt_parts = [
+            "Review the user's discomfort (if any) and the proposed execution plan."
+        ]
+        
+        if discomfort:
+            prompt_parts.append(f"\nUser Discomfort:\n'''\n{discomfort}\n'''")
+        
+        prompt_parts.append(f"\nProposed Plan:\n{plan_steps}")
+        
+        return "\n".join(prompt_parts)
+
+    def _evaluate_template(self, template: Template, state: CycleState) -> JudgeDecision:
+        """Ask the VetoEngine (Judge) to approve or deny the template."""
+        if template.judge is None:
+            return JudgeDecision(approved=True, reason="No judge configured; auto-approving.")
+
+        veto_engine = VetoEngine(
+            model=template.judge.model,
+            system_prompt=template.judge.system_prompt,
+            **template.judge.model_dump(exclude={"model", "system_prompt"}),
+        )
+        
+        plan_prompt = self._render_plan_prompt(template.steps, state)
+        
+        decision_dict = veto_engine.decide(plan_prompt)
+        return JudgeDecision.model_validate(decision_dict)
+
+    def run(self, template_name: str, cycle_id: Optional[str] = None) -> None:
+        """Execute a full Denavy cycle."""
+        
+        start_time = datetime.utcnow()
+        active_cycle_id = cycle_id or create_cycle_id(start_time)
+        state = self._create_cycle_state(active_cycle_id)
+        
+        log_writer = LogWriter(self.logs_dir, active_cycle_id)
+        
+        try:
+            template = self._load_template(template_name)
+        except Exception as e:
+            self.console.print(Panel(f"Fatal Error: {e}", title="Engine", style="bold red"))
+            return
+
+        decision = self._evaluate_template(template, state)
+        self.console.print(Panel(
+            decision.reason, 
+            title="Veto Result", 
+            style="green" if decision.approved else "red"
+        ))
+
+        if not decision.approved:
+            next_plugin_name = self._handle_veto(state)
+            if not next_plugin_name:
+                self.console.print("[bold red]Cycle aborted by user.[/]")
+                return
+            
+            steps_to_run = [PluginConfig(name=next_plugin_name, config={})]
+        else:
+            steps_to_run = template.steps
+
+        events: List[EventLogEntry] = []
+        for step in steps_to_run:
+            plugin = get_plugin(step.plugin)
+            if not plugin:
+                self.console.print(f"[ERROR] Plugin '{step.plugin}' not found.", style="red")
+                continue
+
+            event, result = self._execute_step(state, plugin, step.config)
+            events.append(event)
+            log_writer.log_event(event)
+            
+            self._apply_plugin_result(state, result)
+            
+            if result.status == "error":
+                self.console.print(f"[ERROR] Cycle halted due to error in {plugin.name}.", style="red")
+                break
+        
+        if template.summary:
+            summary_plugin = get_plugin(template.summary.plugin)
+            if summary_plugin:
+                summary_config = template.summary.config.copy()
+                summary_config["events"] = events
+                
+                event, result = self._execute_step(state, summary_plugin, summary_config)
+                log_writer.log_event(event)
+                
+                self._apply_plugin_result(state, result) 
+                
+                if result.status == "success":
+                    log_writer.write_summary_artifacts(
+                        result.output.get("summary"),
+                        result.output.get("index")
+                    )
+
+        self.console.print(Panel(
+            f"Cycle {active_cycle_id} completed", 
+            title="denavy", 
+            style="cyan"
+        ))
+
+    def _execute_step(
+        self, 
+        state: CycleState, 
+        plugin: BasePlugin, 
+        config: dict
+    ) -> tuple[EventLogEntry, PluginResult]:
+        """Execute a single plugin and generate its event log."""
+
+        interpolated_config = config
+
         event = EventLogEntry(
-            timestamp=started,
+            timestamp=datetime.utcnow(),
             cycle_id=state.cycle_id,
             plugin=plugin.name,
-            status=status,
-            input_payload=input_payload,
-            output_payload=output_payload,
-            message=message,
-            tags=tags,
+            status="success",
+            input_payload=interpolated_config,
         )
-        events.append(event)
-        self.console.print(f"[{status}] {plugin.name}: {message or 'ok'}")
+        
+        try:
+            result = plugin.run(state, interpolated_config)
+            
+            event.status = result.status
+            event.output_payload = result.output
+            event.message = result.message
+            event.tags = result.tags
+            
+            self.console.print(render_event(event))
+            return event, result
+            
+        except Exception as e:
+            event.status = "error"
+            event.message = str(e)
+            self.console.print(render_event(event))
+            return event, PluginResult(status="error", message=str(e))
 
-    def _apply_plugin_result(self, result: PluginResult, state: CycleState) -> None:
-        for key, value in result.state_updates.items():
-            state.set_value(key, value)
-        if result.tags:
-            state.add_tags(result.tags)
-        if "note" in result.output:
-            note = result.output["note"]
-            if isinstance(note, str):
-                state.add_note(note)
+    def _apply_plugin_result(self, state: CycleState, result: PluginResult) -> None:
+        """Apply updates from a plugin's result to the main cycle state."""
+        
+        if result.user_input is not None:
+            state.user_input = result.user_input
+        if result.file_contents is not None:
+            state.file_contents = result.file_contents
+        if result.proposed_resolution is not None:
+            state.proposed_resolution = result.proposed_resolution
+        if result.user_feedback is not None:
+            state.user_feedback = result.user_feedback
+        
+        state.scratchpad.update(result.scratchpad_updates)
+        
+        state.add_tags(result.tags)
 
-    def _resolve_plugin(self, plugin_name: str) -> BasePlugin:
-        plugin = get_plugin(plugin_name)
-        if not plugin:
-            raise PluginExecutionError(f"Unknown plugin '{plugin_name}'")
-        return plugin
-
-    def _generate_logs(
-        self,
-        template_doc: Dict[str, Any],
-        state: CycleState,
-        events: List[EventLogEntry],
-    ) -> tuple[SummaryDocument, IndexRecord]:
-        summary_config = template_doc["template"].get("summary", {"plugin": "summarizer", "config": {}})
-        plugin_name = summary_config.get("plugin", "summarizer")
-        config = summary_config.get("config", {})
-        plugin = self._resolve_plugin(plugin_name)
-        result = plugin.run(state, {**config, "events": events})
-        summary_payload = result.output.get("summary")
-        index_payload = result.output.get("index")
-        if not isinstance(summary_payload, SummaryDocument) or not isinstance(index_payload, IndexRecord):
-            raise PluginExecutionError("Summarizer plugin must return SummaryDocument and IndexRecord")
-
-        events.append(
-            EventLogEntry(
-                timestamp=datetime.utcnow(),
-                cycle_id=state.cycle_id,
-                plugin=plugin.name,
-                status=result.status,
-                input_payload={"config": config},
-                output_payload={"summary_headline": summary_payload.headline},
-                message=result.message,
-            )
-        )
-
-        return summary_payload, index_payload
+    def _handle_veto(self, state: CycleState) -> Optional[str]:
+        """(Temp) Fallback to manual plugin selection if Judge vetoes."""
+        self.console.print("[yellow]Judge vetoed the plan. Available plugins:[/]")
+        plugins = list(list_plugins())
+        for i, name in enumerate(plugins):
+            self.console.print(f"{i+1}. {name}")
+        
+        choice_str = Prompt.ask("Pick next plugin (number or name)", default="exit")
+        
+        if choice_str.lower() in ("exit", "quit"):
+            return None
+        
+        try:
+            idx = int(choice_str) - 1
+            if 0 <= idx < len(plugins):
+                return plugins[idx]
+        except ValueError:
+            pass
+        
+        if choice_str in plugins:
+            return choice_str
+            
+        return None

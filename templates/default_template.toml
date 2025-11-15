@@ -39,4 +39,6 @@ config.prompt = "Did this outcome help? Leave subjective feedback."
 
 [template.summary]
 plugin = "summarizer"
-config = {}
+config.model = "gemini/gemini-2.5-flash-lite"
+config.temperature = 0.1
+config.max_highlight_len = 100

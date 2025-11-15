@@ -18,6 +18,7 @@ src/denavy_core/template_loader.py
 src/plugins/__init__.py
 src/plugins/cli_feedback.py
 src/plugins/cli_input.py
+src/plugins/context_aware_resolver.py
 src/plugins/registry.py
 src/plugins/simple_llm_resolver.py
 src/plugins/summarizer.py
