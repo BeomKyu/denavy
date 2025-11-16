@@ -15,6 +15,7 @@ src/denavy_core/engine.py
 src/denavy_core/llm.py
 src/denavy_core/log_writer.py
 src/denavy_core/template_loader.py
+src/denavy_core/utils.py
 src/plugins/__init__.py
 src/plugins/cli_feedback.py
 src/plugins/cli_input.py
