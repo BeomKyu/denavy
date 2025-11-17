@@ -12,15 +12,25 @@ from denavy_common import JudgeDecision
 from litellm import completion
 from litellm.utils import Choices
 
+# '진화': default_template.toml의 강력한 프롬프트로 통일 및 구조 강화
 DEFAULT_DECISION_PROMPT = """
-You are a strict JSON-only Veto Engine.
-Your *only* output must be a single, valid JSON object.
-Do not add any text before or after the JSON.
-Do not use markdown wrappers like ```json.
-Review the user's discomfort and the proposed template steps.
-Respond with JSON containing:
-- "approved": boolean (true if the plan is good, false if it's irrelevant or bad)
-- "reason": A short string explaining your decision.
+You are the Veto Engine for Denavy.
+Your task is to review the proposed execution plan against the user's request.
+
+Output Format:
+You must output a SINGLE valid JSON object. 
+Do NOT add any markdown formatting (no ```json blocks).
+Do NOT add any text before or after the JSON.
+
+JSON Structure:
+{
+  "approved": boolean, // true if the plan effectively addresses the user's discomfort. false otherwise.
+  "reason": "string"   // A concise explanation of your decision (max 1 sentence).
+}
+
+Criteria:
+- If the plan is logical and relevant to the user's input, approve it.
+- If the plan is harmful, irrelevant, or fundamentally flawed, deny it.
 """.strip()
 
 
@@ -40,14 +50,26 @@ class VetoEngine:
         ]
         
         json_kwargs = self.kwargs.copy()
+        # '진화': 모델이 지원한다면 JSON 모드 강제 (OpenAI 등)
         json_kwargs["response_format"] = {"type": "json_object"}
 
         try:
             response = completion(model=self.model, messages=messages, **json_kwargs)
             message = _extract_first_message(response.choices)
-            return json.loads(message)
+            
+            # '진화': 마크다운 코드 블록이 섞여 있을 경우 제거하는 방어 로직 추가
+            cleaned_message = message.strip()
+            if cleaned_message.startswith("```json"):
+                cleaned_message = cleaned_message[7:]
+            if cleaned_message.startswith("```"):
+                cleaned_message = cleaned_message[3:]
+            if cleaned_message.endswith("```"):
+                cleaned_message = cleaned_message[:-3]
+                
+            return json.loads(cleaned_message.strip())
         
         except json.JSONDecodeError as exc:
+            # 실패 시에도 원본 메시지를 raw 필드에 담아 디버깅 용이하게 함
             return {"approved": True, "reason": f"Judge failed JSON parsing ({exc}), defaulting to approve.", "raw": message}
         except Exception as exc:
             self.console.print(Panel.fit(f"Judge invocation failed: {exc}", title="Veto", style="red"))

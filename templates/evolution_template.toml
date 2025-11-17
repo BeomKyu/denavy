@@ -1,0 +1,43 @@
+[template]
+name = "evolution-cycle"
+description = "Triggered by negative feedback to reflect and improve."
+
+[template.judge]
+# 진화 사이클은 거부권 없이 즉시 실행 (자아 비판 모드)
+model = "gemini/gemini-2.5-flash-lite"
+# '진화': JSON 스키마를 명시하여 Pydantic 오류 방지
+system_prompt = """
+You are the Evolution Judge.
+Your ONLY task is to APPROVE the self-reflection process.
+
+Output Format:
+Return a SINGLE valid JSON object with exactly these fields:
+{
+  "approved": true,
+  "reason": "Evolution cycle authorized."
+}
+"""
+
+[[template.steps]]
+plugin = "cli_input"
+config.prompt = "I detected dissatisfaction. How should I improve or what went wrong?"
+
+[[template.steps]]
+plugin = "simple_llm_resolver"
+config.model = "gemini/gemini-2.5-flash-lite"
+config.prompt_template = """
+CRITICAL SYSTEM FEEDBACK RECEIVED.
+User Discomfort (Meta): {discomfort}
+
+Analyze the failure of the previous cycle and propose a concrete improvement plan for the Denavy system.
+Examples:
+- "Update the prompt in default_template.toml"
+- "Create a new plugin for X"
+"""
+
+[[template.steps]]
+plugin = "cli_feedback"
+config.prompt = "Does this improvement plan sound better?"
+
+[template.summary]
+plugin = "summarizer"
