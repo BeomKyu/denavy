@@ -185,31 +185,69 @@ class HybridOrchestrator:
         self._check_and_trigger_evolution(state, active_cycle_id)
 
     def _check_and_trigger_evolution(self, state: CycleState, previous_cycle_id: str) -> None:
-        """Check user feedback and trigger evolution template if negative."""
-        feedback = (state.user_feedback or "").lower().strip()
-        
-        # '진화': 부정적 피드백 감지 키워드 (단순 휴리스틱)
-        negative_keywords = [
-            "no", "not", "bad", "fail", "false", "error", 
-            "별로", "아니", "실패", "재미없어", "부족", "안돼", "틀렸어", "다시"
-        ]
-        is_negative = any(word in feedback for word in negative_keywords) or (feedback and len(feedback) < 3)
+        """
+        Check user feedback using an LLM (Sentiment Judge).
+        If the feedback is negative/dissatisfied, trigger the evolution template.
+        """
+        feedback = state.user_feedback
+        if not feedback:
+            return
 
-        if is_negative:
-            self.console.print("\n")
-            self.console.print(Panel("⚠ Negative feedback detected. Initiating Evolution Protocol...", style="bold magenta"))
+        # '진화': 단순 키워드 대신, LLM을 사용하여 피드백의 '의도'를 판단합니다.
+        self.console.print(f"[dim]Analyzing feedback sentiment...[/]")
+        
+        sentiment_prompt = """
+        You are the Sentiment Judge for Denavy.
+        Analyze the user's feedback regarding the previous execution result.
+
+        Output Format:
+        Return a SINGLE valid JSON object:
+        {
+          "is_negative": boolean, // true if the user is dissatisfied, says 'no', requests a correction, or wants something else.
+          "reason": "string"      // Brief explanation.
+        }
+
+        Examples:
+        - "no" -> true
+        - "별로야" (Not good) -> true
+        - "재미없어" (Not fun) -> true
+        - "다시 해봐" (Try again) -> true
+        - "좋아" (Good) -> false
+        - "응" (Yes) -> false
+        """
+        
+        # 기존 VetoEngine을 재활용하여 '감성 분석'을 수행
+        # (JudgeConfig나 Template 설정 없이 엔진 내부에서 즉석 호출)
+        veto_engine = VetoEngine(
+            model="gemini/gemini-2.5-flash-lite", # 가볍고 빠른 모델 사용
+            system_prompt=sentiment_prompt,
+            temperature=0.0
+        )
+
+        try:
+            # user_feedback을 '프롬프트'로 던져서 판단 요청
+            decision = veto_engine.decide(feedback)
+            is_negative = decision.get("is_negative", False)
+            reason = decision.get("reason", "No reason provided")
             
-            # 재귀 호출을 위한 설정
-            self._recursion_depth += 1
-            evo_cycle_id = f"{previous_cycle_id}-evo"
-            
-            # 'evolution_template' 실행 (없으면 에러가 나겠지만, 곧 만들 예정)
-            try:
-                self.run("evolution_template", cycle_id=evo_cycle_id)
-            except Exception as e:
-                 self.console.print(f"[dim]Evolution failed to start: {e}[/]")
-            finally:
-                self._recursion_depth -= 1
+            if is_negative:
+                self.console.print(f"[bold magenta]⚠ Negative feedback detected ({reason}). Initiating Evolution Protocol...[/]")
+                
+                # 재귀 깊이 관리
+                self._recursion_depth += 1
+                evo_cycle_id = f"{previous_cycle_id}-evo"
+                
+                try:
+                    self.run("evolution_template", cycle_id=evo_cycle_id)
+                except Exception as e:
+                     self.console.print(f"[dim]Evolution failed to start: {e}[/]")
+                finally:
+                    self._recursion_depth -= 1
+            else:
+                self.console.print("[dim]Feedback analyzed as positive. Cycle complete.[/]")
+
+        except Exception as e:
+            self.console.print(f"[yellow]Sentiment check failed: {e}. Skipping evolution.[/]")
 
     def _execute_step(
         self, 

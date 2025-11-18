@@ -4,3 +4,4 @@ litellm>=1.37
 rich>=13.7
 toml>=0.10.2
 prompt_toolkit>=3.0
+python-dotenv>=1.2.1

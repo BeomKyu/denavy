@@ -10,6 +10,7 @@ Requires-Dist: litellm>=1.37
 Requires-Dist: rich>=13.7
 Requires-Dist: toml>=0.10.2
 Requires-Dist: prompt_toolkit>=3.0
+Requires-Dist: python-dotenv>=1.2.1
 
 # denavy 2.0 — 실행 엔진과 진화 로그
 
