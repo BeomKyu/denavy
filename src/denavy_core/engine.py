@@ -60,6 +60,22 @@ class HybridOrchestrator:
         except Exception as e:
             raise ValueError(f"Failed to load or parse template {template_file}: {e}")
 
+    def _get_registry_menu(self) -> str:
+        """Generates a text menu of available templates and plugins for the Judge."""
+        menu_lines = ["\nAvailable Tools (Menu):"]
+        
+        # 1. Templates
+        menu_lines.append("- Templates:")
+        for path in self.templates_dir.glob("*.toml"):
+             menu_lines.append(f"  * {path.stem}")
+             
+        # 2. Plugins
+        menu_lines.append("- Plugins:")
+        for name in list_plugins():
+            menu_lines.append(f"  * {name}")
+            
+        return "\n".join(menu_lines)
+
     def _render_plan_prompt(self, steps: list[PluginConfig], state: CycleState) -> str:
         """Generate the prompt for the VetoEngine, now including user input."""
         plan_steps = "\n".join(f"- Step: {step.plugin}" for step in steps)
@@ -75,6 +91,10 @@ class HybridOrchestrator:
             prompt_parts.append("\nUser Discomfort: (None - Input not provided yet)")
         
         prompt_parts.append(f"\nProposed Plan:\n{plan_steps}")
+        
+        # '진화': 레지스트리 메뉴 주입
+        prompt_parts.append(self._get_registry_menu())
+        
         return "\n".join(prompt_parts)
 
     def _evaluate_template(self, template: Template, state: CycleState) -> JudgeDecision:
@@ -138,6 +158,18 @@ class HybridOrchestrator:
         ))
 
         if not decision.approved:
+            # '진화': 판사가 대안을 제시했는지 확인
+            if decision.recommended_template:
+                self.console.print(f"[bold yellow]Judge suggests switching to: {decision.recommended_template}[/]")
+                confirm = Prompt.ask("Switch to this template?", choices=["y", "n"], default="y")
+                
+                if confirm == "y":
+                    # 재귀 호출 대신 현재 실행 흐름을 교체 (간단히 구현)
+                    # 실제로는 run()을 다시 호출하는 것이 깔끔함
+                    self.console.print(f"[dim]Switching context to {decision.recommended_template}...[/]")
+                    self.run(decision.recommended_template, cycle_id=active_cycle_id)
+                    return
+
             next_plugin_name = self._handle_veto(state)
             if not next_plugin_name:
                 self.console.print("[bold red]Cycle aborted by user.[/]")

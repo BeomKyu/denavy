@@ -98,6 +98,8 @@ class JudgeDecision(BaseModel):
 
     approved: bool
     reason: str
+    recommended_template: Optional[str] = None
+    confidence_score: float = 0.0
     raw_response: Optional[Any] = None
 
 

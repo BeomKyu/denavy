@@ -25,12 +25,14 @@ Do NOT add any text before or after the JSON.
 JSON Structure:
 {
   "approved": boolean, // true if the plan effectively addresses the user's discomfort. false otherwise.
-  "reason": "string"   // A concise explanation of your decision (max 1 sentence).
+  "reason": "string",  // A concise explanation of your decision (max 1 sentence).
+  "recommended_template": "string" // Optional: If rejecting, suggest a better template/plugin name from the 'Available Tools' list. null if no better option.
 }
 
 Criteria:
 - If the plan is logical and relevant to the user's input, approve it.
 - If the plan is harmful, irrelevant, or fundamentally flawed, deny it.
+- If you deny it, check the 'Available Tools' list provided in the prompt and recommend a safer or more appropriate template/plugin name in 'recommended_template'.
 """.strip()
 
 
