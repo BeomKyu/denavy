@@ -4,4 +4,4 @@ __pycache__/
 logs/
 .env
 outputs/
-git_diff
+git_diff.txt
