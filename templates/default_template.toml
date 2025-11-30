@@ -16,6 +16,22 @@ config.base_path = "src"
 config.directories = []
 
 [[template.steps]]
+plugin = "prompt_refiner"
+config.model = "gemini/gemini-2.5-flash-lite"
+config.prompt_template = """
+You are a technical lead. Refine the following vague user request into a specific, actionable technical instruction based on the provided code context.
+
+User Request: {user_input}
+
+Code Context:
+{file_contents}
+
+Refined Instruction:
+"""
+config.system_prompt = "You are an expert software architect. Output ONLY the refined technical instruction. Do not add preamble."
+
+
+[[template.steps]]
 plugin = "simple_llm_resolver"
 config.model = "gemini/gemini-2.5-flash-lite"
 config.prompt_template = """
