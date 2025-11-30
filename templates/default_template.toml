@@ -19,28 +19,35 @@ config.directories = []
 plugin = "prompt_refiner"
 config.model = "gemini/gemini-2.5-flash-lite"
 config.prompt_template = """
-You are a technical lead. Refine the following vague user request into a specific, actionable technical instruction based on the provided code context.
+You are an intelligent assistant. Your goal is to clarify the user's request.
+If the request is vague (e.g., "fix it"), use the provided code context to make it specific (e.g., "Fix the ValueError in auth.py").
+If the request is already clear or casual (e.g., "Tell me a joke"), KEEP IT AS IS or slightly enhance it for better results, but DO NOT force it into a technical specification.
 
 User Request: {user_input}
 
 Code Context:
 {file_contents}
 
-Refined Instruction:
+Refined Request:
 """
-config.system_prompt = "You are an expert software architect. Output ONLY the refined technical instruction. Do not add preamble."
-
+config.system_prompt = "You are a helpful and adaptive assistant. Output ONLY the refined request. Do not add preamble."
 
 [[template.steps]]
 plugin = "simple_llm_resolver"
 config.model = "gemini/gemini-2.5-flash-lite"
+config.system_prompt = "You are a direct execution engine. Do not plan. Do not number steps. Just generate the requested content (code or text) immediately."
 config.prompt_template = """
-User discomfort: {discomfort}
+User Request: {discomfort}
 
 Relevant code context:{file_contents}
 
-Provide a numbered action plan that accelerates relief.
-Respond in the same language as the user's discomfort.
+You are a DOER, not a planner.
+If the user asks for code, WRITE THE CODE.
+If the user asks for a story, TELL THE STORY.
+If the user asks for a plan, only then provide a plan.
+
+Directly execute the request. Do not output a "Plan" unless explicitly asked.
+Respond in the same language as the user.
 """
 config.fallback_plan = """
 LLM 호출에 실패했습니다. 다음을 확인하세요:
