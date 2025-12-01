@@ -102,6 +102,36 @@ def init(
     console.print("Try running: [bold white]denavy run[/]")
 
 
+
+@app.command()
+def auto(
+    request: str = typer.Argument(..., help="Natural language request describing what you want to do"),
+    templates_dir: Path = typer.Option(Path("templates"), "--templates-dir", help="Directory containing templates"),
+    logs_dir: Path = typer.Option(Path("logs"), "--logs-dir", help="Directory where logs are written"),
+) -> None:
+    """Auto-select and run the best template for your request."""
+    console.print(Panel(f"🤖 Auto-Pilot: Analyzing request... '{request}'", style="bold purple"))
+
+    # 1. Scan Templates
+    templates = _scan_templates(templates_dir)
+    if not templates:
+        console.print("[red]No templates found![/]")
+        raise typer.Exit(code=1)
+
+    # 2. AI Routing
+    try:
+        selected_template_name = _route_request(request, templates)
+    except Exception as e:
+        console.print(f"[red]Routing failed: {e}[/]")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]✔ Selected Template: [bold]{selected_template_name}[/][/]")
+
+    # 3. Execute
+    orchestrator = HybridOrchestrator(templates_dir=templates_dir, logs_dir=logs_dir, console=console)
+    orchestrator.run(template_name=selected_template_name)
+
+
 def _create_directories(dirs: list[str]) -> None:
     for d in dirs:
         path = Path(d)
@@ -110,3 +140,78 @@ def _create_directories(dirs: list[str]) -> None:
             console.print(f"[green]✔ Created directory: {d}/[/]")
         else:
             console.print(f"[dim]  Directory exists: {d}/[/]")
+
+
+def _scan_templates(templates_dir: Path) -> list[dict]:
+    """Scans .toml files and extracts metadata."""
+    import tomllib
+    
+    templates = []
+    if not templates_dir.exists():
+        return []
+
+    for file_path in templates_dir.glob("*.toml"):
+        try:
+            with file_path.open("rb") as f:
+                data = tomllib.load(f)
+                meta = data.get("template", {})
+                name = meta.get("name", file_path.stem)
+                desc = meta.get("description", "No description provided.")
+                # We use the filename (stem) as the ID for execution, but 'name' for display/routing if needed.
+                # Actually orchestrator.run takes the filename stem usually, or the name defined in TOML?
+                # cli.py run command uses `template` arg which defaults to "default_template".
+                # TemplateLoader loads by filename. So we should return the filename stem as the key.
+                templates.append({
+                    "id": file_path.stem,
+                    "name": name,
+                    "description": desc
+                })
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to parse {file_path}: {e}[/]")
+    
+    return templates
+
+
+def _route_request(user_request: str, templates: list[dict]) -> str:
+    """Uses LLM to select the best template."""
+    import litellm
+    import os
+
+    # Simple prompt construction
+    options_text = "\n".join([f"- {t['id']}: {t['description']}" for t in templates])
+    
+    prompt = f"""
+    User Request: "{user_request}"
+
+    Available Templates:
+    {options_text}
+
+    Task: Select the most appropriate template ID for this request.
+    Return ONLY the template ID (e.g., 'default_template'). Do not add any explanation.
+    """
+
+    # Use a cheap/fast model for routing if possible, or default to env var
+    model = os.getenv("DENAVY_ROUTER_MODEL", "gemini/gemini-2.5-flash-lite")
+
+    response = litellm.completion(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
+    
+    selected_id = response.choices[0].message.content.strip()
+    
+    # Basic validation
+    valid_ids = {t['id'] for t in templates}
+    if selected_id not in valid_ids:
+        # Fallback: try to find a partial match or default
+        for vid in valid_ids:
+            if vid in selected_id:
+                return vid
+        raise ValueError(f"LLM returned invalid template ID: {selected_id}")
+
+    return selected_id
+
+
+if __name__ == "__main__":
+    app()

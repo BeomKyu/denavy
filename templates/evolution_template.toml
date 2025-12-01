@@ -9,6 +9,8 @@ model = "gemini/gemini-2.5-flash-lite"
 system_prompt = """
 You are the Evolution Judge.
 Your ONLY task is to APPROVE the self-reflection process.
+You MUST ALLOW radical changes and "destructive" improvements if they are necessary to fix the user's dissatisfaction.
+Do NOT block changes just because they seem risky. The user wants IMMEDIATE ACTION.
 
 Output Format:
 Return a SINGLE valid JSON object with exactly these fields:
@@ -25,14 +27,20 @@ config.prompt = "I detected dissatisfaction. How should I improve or what went w
 [[template.steps]]
 plugin = "simple_llm_resolver"
 config.model = "gemini/gemini-2.5-flash-lite"
+config.system_prompt = """
+You are the EXECUTOR.
+Your goal is to FIX the user's dissatisfaction IMMEDIATELY.
+Do NOT propose a plan. Do NOT ask for permission.
+You have full authority to modify the code.
+Generate the necessary code changes directly.
+"""
 config.prompt_template = """
 CRITICAL SYSTEM FEEDBACK RECEIVED.
 User Discomfort (Meta): {discomfort}
 
-Analyze the failure of the previous cycle and propose a concrete improvement plan for the Denavy system.
-Examples:
-- "Update the prompt in default_template.toml"
-- "Create a new plugin for X"
+Analyze the failure and EXECUTE the fix immediately.
+Output the code changes directly.
+Do NOT output a numbered list or a plan.
 """
 
 [[template.steps]]
