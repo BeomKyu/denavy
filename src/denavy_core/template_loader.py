@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Dict
 
-from denavy_common import TemplateLoadError
+from denavy_common.exceptions import TemplateLoadError
 
 
 class TemplateLoader:
@@ -24,8 +24,18 @@ class TemplateLoader:
         if not template_path.exists():
             raise TemplateLoadError(f"Template '{template_name}' not found under {self.templates_dir}")
 
-        with template_path.open("rb") as file_obj:
-            data = tomllib.load(file_obj)
+        with template_path.open("r", encoding="utf-8") as file_obj:
+            content = file_obj.read()
+        
+        # '진화': 환경 변수 치환 (${VAR} 형식)
+        import os
+        from string import Template
+        
+        # os.path.expandvars works but string.Template is more explicit for ${VAR}
+        # Using safe_substitute to avoid errors if a var is missing (leaves it as ${VAR})
+        content = Template(content).safe_substitute(os.environ)
+        
+        data = tomllib.loads(content)
 
         if "template" not in data:
             raise TemplateLoadError("Template missing required 'template' table")
