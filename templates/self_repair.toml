@@ -1,70 +1,38 @@
-# templates/self_repair.toml
-# "The Self-Repair Loop"
-# Logic: Ask -> Generate Code -> Run -> (Auto-Repair if fail) -> Commit
-
 [template]
 name = "self_repair"
-description = "Autonomous coding agent that writes, executes, fixes, and commits code."
+description = "Autonomous coding loop."
 
 [template.judge]
 model = "gpt-4-turbo"
-system_prompt = """
-You are the Supervisor.
-The user wants to run a 'Self-Repair' coding task.
-Verify that the request is safe (no system destruction) and feasible.
-"""
+system_prompt = "Approve if safe."
 
 [[template.steps]]
 plugin = "cli_input"
 [template.steps.config]
-prompt = "What code do you want me to write and run?"
+prompt = "Task Description"
 
 [[template.steps]]
-plugin = "simple_llm_resolver"
+plugin = "simple_llm"
 [template.steps.config]
-# This plugin will generate the code and filename based on user input
-# We need to instruct it to output a JSON we can parse, or set scratchpad variables.
-# Since simple_llm_resolver is... simple, let's assume it puts the result in `proposed_resolution` or `scratchpad`.
-# Ideally, we'd have a 'coder' plugin, but we can reuse this with a strong system prompt.
 system_prompt = """
-You are a Python Expert.
-Generate Python code based on the user's request.
-You MUST output the response in a specific format so the next step can execute it.
-
+Generate Python code for the user.
 Format:
-FILENAME: <filename.py>
+FILENAME: script.py
 CODE:
 ```python
-<your code here>
+print('Hello')
 ```
-
-Ensure the code includes tests or assertions (e.g. `if __name__ == "__main__": ...`) to verify it works.
+Ensure it includes tests/assertions.
 """
 
 [[template.steps]]
-plugin = "context_aware_resolver"
-# Wait, simple_llm_resolver might not parse the output into config for the next step.
-# We need a step that parses the LLM output and feeds it to 'executor'.
-# Let's use a "bridge" logic or assume 'executor' can read from context.
-# Since we don't have a parser plugin, I'll use a specific 'code_extractor' functionality
-# or I will rely on the Planner to fix the mismatch?
-# No, let's use a 'CodeWriter' plugin logic.
-# Re-reading: "Write/Modify Code" -> "Execute/Test".
-# I'll add a 'parser' step or modify 'executor' to handle raw LLM text?
-# Better: Let's create a 'code_writer' plugin quickly?
-# Or assume the user wants me to use the tools I have.
-# I will add a 'code_writer' plugin to src/plugins/code_writer.py to parse the LLM output.
-# BUT, the plan didn't explicitly say create code_writer.
-# I will use 'executor' but I need to pass the code to it.
-# 'simple_llm_resolver' returns `proposed_resolution`.
-# I will update 'executor' to look at `state.proposed_resolution` if `code` config is missing.
 plugin = "executor"
 [template.steps.config]
-# Logic: Executor will look for code in state if not in config.
-# We need to implement this "Context Awareness" in Executor.
+# Engine will fill code/filename from state if missing
+timeout = 30
 
 [[template.steps]]
 plugin = "git_committer"
 [template.steps.config]
-message = "Auto-commit: Self-repair task completed"
-push = false # Safety for now
+message = "Auto-fix applied"
+push = false
