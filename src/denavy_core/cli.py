@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass # denavy init 실행 전일 수 있음
 
-from .engine import HybridOrchestrator
+from .engine import ExecutionEngine
 from plugins.registry import list_plugins
 
 app = typer.Typer(help="Denavy hybrid orchestrator")
@@ -32,9 +32,8 @@ def run(
     logs_dir: Path = typer.Option(Path("logs"), "--logs-dir", help="Directory where logs are written"),
 ) -> None:
     """Execute a Denavy cycle."""
-    # (기존 코드 유지)
-    orchestrator = HybridOrchestrator(templates_dir=templates_dir, logs_dir=logs_dir, console=console)
-    orchestrator.run(template_name=template, cycle_id=cycle_id)
+    engine = ExecutionEngine(templates_dir=templates_dir, logs_dir=logs_dir, console=console)
+    engine.run(template_name=template, cycle_id=cycle_id)
 
 
 @app.command()
@@ -128,8 +127,8 @@ def auto(
     console.print(f"[green]✔ Selected Template: [bold]{selected_template_name}[/][/]")
 
     # 3. Execute
-    orchestrator = HybridOrchestrator(templates_dir=templates_dir, logs_dir=logs_dir, console=console)
-    orchestrator.run(template_name=selected_template_name)
+    engine = ExecutionEngine(templates_dir=templates_dir, logs_dir=logs_dir, console=console)
+    engine.run(template_name=selected_template_name)
 
 
 def _create_directories(dirs: list[str]) -> None:
