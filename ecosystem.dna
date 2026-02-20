@@ -1,0 +1,17 @@
+# [Denavy Ecosystem v1.0] 전역 타입 및 뼈대 헌법
+# 모든 로컬 도메인은 이 전역 타입을 기준으로 데이터를 정의한다.
+
+$BaseEntity:
+  id         : UUID     ! @auto
+  created_at : DateTime ! @auto
+  updated_at : DateTime ! @auto
+
+$T:
+  Email    : Str ! @format(email)
+  Password : Str ! @len(8,72) # bcrypt 권장 최대 길이
+  Username : Str ! @pattern(^[a-zA-Z0-9_]+$) @len(3,30)
+  URL      : Str ! @format(uri)
+
+$Enum:
+  Role   : [admin, user, guest] <- "user"
+  Status : [active, inactive, banned] <- "active"
