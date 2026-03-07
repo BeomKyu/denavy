@@ -102,20 +102,20 @@ DB에 의존하지 않고 파일시스템과 Git을 결합하여 에이전트의
 * **Process:**
     1. **Editor Agent**가 `sandbox/src_draft/`에서 명세서의 단위 기능(Atomic Task)별로 코드를 구현한다.
     2. `spec/test/`의 테스트 케이스를 자율적으로 실행. 모든 테스트 통과(Exit Code 0)까지 코드 수정/디버깅 반복.
-    3. `spec/.block` 플래그를 통해 Editor가 테스트 코드를 임의 수정하여 검증을 우회하는 행위를 차단.
+    3. `.githooks/pre-commit` 훅이 FSM 상태를 검사하여, `IMPLEMENTING` 상태에서 `spec/` 수정을 시도하면 커밋을 물리적으로 차단.
     4. 테스트 통과한 코드를 인간에게 바로 넘기지 않고, **Reviewer Agent**에게 비동기적으로 전달한다.
     5. **Reviewer Agent**는 비판과 검증에만 특화된 프롬프트를 보유하며, 초기 명세서(`spec/spec.md`)와 제약조건(`spec/dna/`)을 기준으로 아키텍처 원칙 위반, 논리적 결함, 보안 취약점을 정적 분석한다.
     6. **적대적 협업(Adversarial Collaboration) 사이클:** 결함 발견 시 산출물을 Editor에게 반려(Reject). Editor가 수정 후 재제출. 이 루프는 인간 개입 없이 반복된다.
-    7. Reviewer 승인 시, 보안/아키텍처 영향도 분석 서술형 리포트를 의무 첨부하여 `.denavy/4_pending/`으로 이관한다.
+    7. Reviewer 승인 시, 보안/아키텍처 영향도 분석 서술형 리포트를 의무 첨부하여 `.denavy/reviewer_reports/`에 저장한다.
 * **Git 연동:**
     * Editor는 단위 기능 구현 완료 시마다 구조적 커밋 메시지와 함께 `git commit`을 수행한다.
     * Reviewer 또는 자동화 테스트가 심각한 오류 발견 시, `git reset --hard` 또는 `git revert`를 실행하여 이전 안정 커밋으로 즉시 롤백 후 재구현을 시도한다.
-* **Output:** Reviewer 승인 완료 코드 + 분석 리포트 → `.denavy/4_pending/`
+* **Output:** Reviewer 승인 완료 코드 + 분석 리포트 → `.denavy/reviewer_reports/`
 
 #### Final Gate: 최종 승인 및 병합 (Human Final Review & Merge)
 
 * **Actor:** User
-* **Input:** `.denavy/4_pending/` 대기열의 코드 + Reviewer 리포트
+* **Input:** `.denavy/reviewer_reports/`의 분석 리포트 + 검증 완료 코드
 * **Process:**
     1. 사용자가 Reviewer의 분석 리포트를 기반으로 최종 검토한다.
     2. 자동화 편향(Automation Bias) 방지를 위해, 리포트의 보안 취약점/영향도 항목을 확인한다.
@@ -130,32 +130,35 @@ DB에 의존하지 않고 파일시스템과 Git을 결합하여 에이전트의
 
 ```text
 / (Project Root)
+├── DENAVY.md                   [ACL: User(RW)] 마스터 시스템 프롬프트 (에이전트 세션 시작 시 자동 로딩)
+│
 ├── .denavy/                    (시스템 백그라운드 관리 영역)
-│   ├── state.md                [ACL: System(RW)] 벼림 DSL로 작성된 FSM 상태 객체 스냅샷 (폴더 이동 없이 파일 내 텍스트만 업데이트)
-│   └── reviewer_reports/       [ACL: Reviewer(W), User(R)] 적대적 검증 통과 후 생성된 보안/아키텍처 분석 리포트 보관소
+│   ├── state.md                [ACL: All(RW)] 벼림 v1.4 DSL 통합 상태 파일 (SSOT)
+│   │                           @FSM_STATE + @PROGRESS + @FEATURES 3개 블록 통합
+│   └── reviewer_reports/       [ACL: Reviewer(W), User(R)]
+│                               적대적 검증 통과 후 생성된 보안/아키텍처 분석 리포트 보관소
+│
+├── .githooks/                  (Git Hook 기반 물리적 접근 통제)
+│   └── pre-commit              [ACL: System] FSM 상태 파싱 기반 spec/ 쓰기 차단
+│                               SPEC_ANALYZE 상태에서만 spec/ 변경 커밋 허용
 │
 ├── spec/                       (아키텍처 제약 및 명세 영역)
 │   ├── dna/                    [ACL: All(R)]
 │   │   ├── constraints.md      도메인 비즈니스 룰 및 전역 기술 스택 제약사항
-│   │   └── agents.md           사내 코딩 컨벤션, 리뷰 가이드라인 등 절차적 기억(Procedural Memory)
+│   │   └── coding_rules.md     프로젝트별 코딩 컨벤션, 리뷰 가이드라인 등 절차적 기억
 │   ├── spec.md                 [ACL: Architect(W), Editor(R), Reviewer(R)]
-│   │                           인간 승인 완료된 아키텍처 청사진 (Ground Truth)
-│   ├── test/                   [ACL: Architect(W), Editor(R)]
-│   │                           TDD 기반 필수 단위/통합 테스트 명세
-│   └── .block                  [ACL: System]
-│                               Editor 에이전트의 spec/ 쓰기 권한 차단 플래그
+│   │                           벼림 v1.4 DSL로 작성된 아키텍처 청사진 (Ground Truth)
+│   └── test/                   [ACL: Architect(W), Editor(R)]
+│                               TDD 기반 필수 단위/통합 테스트 명세
 │
 ├── sandbox/                    (에이전트 격리 실행 영역)
 │   └── src_draft/              [ACL: Editor(RWX)]
 │                               Editor 에이전트의 코드 구현 및 자체 테스트용 워크스페이스
 │
 ├── memory/                     (에이전트 메모리 계층)
-│   ├── episodic/               [ACL: System(RW)]
-│   │                           실행 로그, 테스트 결과, 디버깅 트레이스 (JSON/로그)
-│   ├── progress.md             [ACL: System(RW)]
-│   │                           전체 프로젝트 진행 상태 파일 (조기 완료 방지)
-│   └── feature_list.md         [ACL: System(RW)]
-│                               세부 요구사항별 구현/테스트 통과 상태 추적
+│   └── episodic/               [ACL: System(RW)]
+│                               실행 로그, 테스트 결과, 디버깅 트레이스
+│                               (진행 상태 및 기능 목록은 .denavy/state.md에 통합)
 │
 └── src/                        (프로덕션 릴리즈 영역)
     └── [ACL: User(RW)]
@@ -175,14 +178,14 @@ LLM은 학습 단계에서 GitHub 레포지토리 구조, 로그 파일 포맷, 
 
 | 메모리 유형 | 저장 위치 | 용도 |
 |---|---|---|
-| **절차적 기억 (Procedural)** | `spec/dna/agents.md` | 코딩 컨벤션, 아키텍처 원칙, 리뷰 가이드라인 등 암묵적 지식의 명시적 텍스트화. 세션 시작 시 자동 로딩. |
+| **절차적 기억 (Procedural)** | `DENAVY.md` + `spec/dna/coding_rules.md` | 시스템 헌법(DENAVY.md)과 프로젝트별 코딩 컨벤션(coding_rules.md)으로 분리. 세션 시작 시 자동 로딩. |
 | **일화적 기억 (Episodic)** | `memory/episodic/*.md` | 이전 작업의 실행 로그, 테스트 결과, 디버깅 트레이스. 컨텍스트 윈도우 한계 시 자동 압축 요약 후 디스크 오프로딩. |
 | **의미론적 기억 (Semantic)** | `memory/episodic/*.md` | 도메인 지식, API 사용 패턴 등 축적된 사실적 지식. 파일 I/O 도구를 통한 검색. |
-| **진행 상태 (Progress)** | `memory/progress.md`, `memory/feature_list.md` | 전체 프로젝트 중 구현 완료 지점 추적. '단발성 시도' 및 '조기 완료' 오류 방지. |
+| **진행 상태 (Progress)** | `.denavy/state.md` `@PROGRESS` + `@FEATURES` 블록 | 전체 프로젝트 중 구현 완료 지점 및 기능별 상태 추적. 단일 진실 공급원(SSOT)으로 통합. |
 
 ### 5.2. 계층 2: 유한 상태 기계(FSM) 스키마 기반 상태 전이 제어
 
-에이전트의 상태를 비정형 채팅 로그가 아닌, 엄격히 정의된 스키마 객체(JSON 스키마)로 강제한다. 에이전트는 임의의 상태로 분기할 수 없으며, 아래에 정의된 FSM 노드만을 따라 이동해야 한다. 각 전환 시 상태 객체의 데이터 타입과 필수 필드가 완벽히 일치해야만 다음 노드로 전이된다.
+에이전트의 상태를 비정형 채팅 로그가 아닌, 벼림 v1.4 DSL 스키마로 강제한다. 에이전트는 임의의 상태로 분기할 수 없으며, 아래에 정의된 FSM 노드만을 따라 이동해야 한다. 각 전환 시 `.denavy/state.md`의 `@FSM_STATE` 블록이 업데이트되며, `.githooks/pre-commit` 훅이 상태 값을 파싱하여 역할별 접근 권한을 물리적으로 강제한다.
 
 ```
                   ┌──────────────────────────────────────────────┐
@@ -227,10 +230,10 @@ LLM은 학습 단계에서 GitHub 레포지토리 구조, 로그 파일 포맷, 
                                                              └──────────┘ └────────┘
 ```
 
-**FSM 상태 객체 스키마 (md):**
+**FSM 상태 객체 스키마 (Byeorim DSL):**
 
-```json
-[Byeorim v1.0]
+```text
+[Byeorim v1.4]
 @FSM_STATE
 
 task: string_uuid
@@ -324,6 +327,7 @@ LLM 기반 오케스트레이터가 에이전트 할당을 매번 추론하는 �
 | **상태 전이 인터페이스** | 통합 GUI 대시보드 부재. 백그라운드 스케줄러가 완성되기 전까지는, 사용자가 IDE 우측 채팅창(Cursor 등)에서 에이전트에게 명시적으로 /approve 또는 /reject 프롬프트를 입력하여 FSM 상태 전이를 트리거해야 하는 대화형 I/O 의존성이 존재함. |
 | **샌드박스 의존성 매핑** | 격리된 `sandbox/` 내 코드가 외부 모듈이나 서드파티 라이브러리를 참조하기 위한 초기 경로 매핑 및 의존성 주입 설정 비용이 높음. |
 | **Git 기반 FSM 학습 곡선** | FSM 스키마 및 Git 기반 자동 롤백 메커니즘에 대한 초기 이해와 설정 비용이 존재. |
+| **기존 Git Hook 충돌** | 타겟 프로젝트가 Husky 등 기존 Git Hook 관리 도구를 사용 중일 경우, `git config core.hooksPath .githooks` 설정이 기존 훅 파이프라인을 무효화할 수 있음. 이 경우 기존 훅 파일에 Denavy pre-commit 로직을 수동 병합해야 함. |
 | **다중 프로젝트 인프라** | 액터 모델 및 이벤트 버스 인프라 구축에 초기 아키텍처 설계 비용이 발생. |
 
 ### 7.2. 점진적 도입 전략 (Phased Rollout)
