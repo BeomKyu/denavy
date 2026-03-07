@@ -80,7 +80,7 @@ DB에 의존하지 않고 파일시스템과 Git을 결합하여 에이전트의
 * **Process:**
     1. 사용자 요구사항을 분석하여 기술적 제약조건(기술 스택, API 호환성, 보안 정책)을 추출한다.
     2. RAG(시맨틱 검색/GraphRAG)를 활용하여 최신 API 문서, 사내 코딩 컨벤션, 보안 규정 등 외부 증거로 모델을 접지(Grounding)시킨다.
-    3. `AGENTS.md` 등 절차적 기억(Procedural Memory) 파일을 파일시스템에서 읽어 전역 컨텍스트로 설정한다.
+    3. `DENAVY.md` 및 `spec/dna/coding_rules.md` 등 절차적 기억(Procedural Memory) 파일을 파일시스템에서 읽어 전역 컨텍스트로 설정한다.
 * **Output:** 제약조건 문서 (`spec/dna/constraints.md`)
 
 #### Stage 2: 명세 작성 및 인간 승인 (Specification Generation & HITL Gate)

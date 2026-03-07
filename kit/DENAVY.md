@@ -158,7 +158,7 @@ SPEC_REVIEW → BACKLOG (사용자 거부 시)
 | `=` | 메모리 할당/갱신 | `is_loading = true` |
 | `<-` | 외부 I/O 견인 | `result <- $DB.query()` |
 | `/>` | 비동기 발사 | `/> send_email()` |
-| `?>` | 예외 반환 | `?=> Error(인증_실패)` |
+| `?=>` | 예외 반환 | `?=> Error(인증_실패)` |
 | `=>` | 정상 반환 | `=> user_token` |
 | `MUST` | 필수 제약 | `MUST amount > 0` |
 | `BAN` | 절대 금지 | `BAN SQL_인젝션` |
