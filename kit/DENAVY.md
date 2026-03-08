@@ -96,18 +96,16 @@ SPEC_REVIEW → BACKLOG (사용자 거부 시)
 
 ## 5. 역할별 접근 권한 (ACL)
 
-| 경로 | Architect | Editor | Reviewer | User |
-|---|---|---|---|---|
 | `spec/dna/` | R | R | R | RW |
 | `spec/spec.md` | RW | R | R | RW |
-| `spec/test/` | RW | R | R | RW |
+| `spec/test/` | RW | RW | R | RW |
 | `sandbox/src_draft/` | — | RWX | R | R |
 | `.denavy/state.md` | RW | RW | RW | RW |
 | `.denavy/reviewer_reports/` | — | — | W | R |
 | `memory/episodic/` | RW | RW | RW | R |
 | `src/` | — | — | — | RW |
 
-> **핵심:** `spec/` 디렉토리 변경은 `.githooks/pre-commit` 에 의해 FSM 상태가 `SPEC_ANALYZE`일 때만 물리적으로 허용된다. `IMPLEMENTING` 상태에서 `spec/` 수정을 시도하면 커밋이 거부된다.
+> **핵심:** `spec/spec.md` 및 `spec/dna/` 변경은 `.githooks/pre-commit`에 의해 `SPEC_ANALYZE`일 때만 허용된다. `spec/test/`는 테스트 구현체이므로 `IMPLEMENTING`, `TEST_RUNNING`, `MERGED`에서도 수정 가능하다.
 
 ---
 

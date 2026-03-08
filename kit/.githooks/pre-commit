@@ -2,8 +2,9 @@
 # =============================================================================
 # Denavy Pre-commit Hook — FSM 상태 기반 spec/ 접근 통제
 # =============================================================================
-# .denavy/state.md의 @FSM_STATE를 파싱하여,
-# SPEC_ANALYZE 상태가 아닐 때 spec/ 디렉토리 변경을 차단한다.
+# 명세 문서 (spec/spec.md, spec/dna/) → SPEC_ANALYZE 에서만 수정 가능
+# 테스트 파일 (spec/test/)            → SPEC_ANALYZE, IMPLEMENTING,
+#                                       TEST_RUNNING, MERGED 에서 허용
 #
 # 초기 세팅: git config core.hooksPath .githooks
 # =============================================================================
@@ -24,20 +25,38 @@ if [ -z "$STATE" ]; then
     exit 0
 fi
 
-# 스테이징된 파일 중 spec/ 하위 변경 감지
-SPEC_CHANGED=$(git diff --cached --name-only | grep "^spec/")
+# ── 1. 명세 문서 보호 (spec/test/ 제외) ──
+SPEC_DOC_CHANGED=$(git diff --cached --name-only | grep "^spec/" | grep -v "^spec/test/")
 
-if [ -n "$SPEC_CHANGED" ] && [ "$STATE" != "SPEC_ANALYZE" ]; then
+if [ -n "$SPEC_DOC_CHANGED" ] && [ "$STATE" != "SPEC_ANALYZE" ]; then
     echo ""
-    echo "❌ Denavy Pre-commit: spec/ 수정이 차단되었습니다."
+    echo "❌ Denavy: spec/ 명세 문서 수정 차단"
     echo ""
     echo "   현재 FSM 상태: $STATE"
     echo "   허용 상태:     SPEC_ANALYZE"
     echo ""
-    echo "   spec/ 디렉토리는 SPEC_ANALYZE 상태에서만 수정할 수 있습니다."
-    echo "   .denavy/state.md의 state 필드를 확인하세요."
+    echo "   spec/spec.md 및 spec/dna/ 는 SPEC_ANALYZE 상태에서만 수정 가능합니다."
     echo ""
     exit 1
 fi
 
+# ── 2. 테스트 파일 보호 (허용 범위 확장) ──
+SPEC_TEST_CHANGED=$(git diff --cached --name-only | grep "^spec/test/")
+
+if [ -n "$SPEC_TEST_CHANGED" ]; then
+    case "$STATE" in
+        SPEC_ANALYZE|IMPLEMENTING|TEST_RUNNING|MERGED) ;;
+        *)
+            echo ""
+            echo "❌ Denavy: spec/test/ 수정 차단"
+            echo ""
+            echo "   현재 FSM 상태: $STATE"
+            echo "   허용 상태:     SPEC_ANALYZE | IMPLEMENTING | TEST_RUNNING | MERGED"
+            echo ""
+            exit 1
+            ;;
+    esac
+fi
+
 exit 0
+
