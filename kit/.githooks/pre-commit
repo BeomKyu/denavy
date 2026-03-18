@@ -25,8 +25,11 @@ if [ -z "$STATE" ]; then
     exit 0
 fi
 
+# 변경된 파일 목록 캐싱 (git diff 호출 최소화)
+STAGED_FILES=$(git diff --cached --name-only)
+
 # ── 1. 명세 문서 보호 (spec/test/ 제외) ──
-SPEC_DOC_CHANGED=$(git diff --cached --name-only | grep "^spec/" | grep -v "^spec/test/")
+SPEC_DOC_CHANGED=$(printf "%s\n" "$STAGED_FILES" | grep "^spec/" | grep -v "^spec/test/")
 
 if [ -n "$SPEC_DOC_CHANGED" ] && [ "$STATE" != "SPEC_ANALYZE" ]; then
     echo ""
@@ -41,7 +44,7 @@ if [ -n "$SPEC_DOC_CHANGED" ] && [ "$STATE" != "SPEC_ANALYZE" ]; then
 fi
 
 # ── 2. 테스트 파일 보호 (허용 범위 확장) ──
-SPEC_TEST_CHANGED=$(git diff --cached --name-only | grep "^spec/test/")
+SPEC_TEST_CHANGED=$(printf "%s\n" "$STAGED_FILES" | grep "^spec/test/")
 
 if [ -n "$SPEC_TEST_CHANGED" ]; then
     case "$STATE" in
