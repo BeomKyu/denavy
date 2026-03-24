@@ -10,6 +10,7 @@ dependencies = [
     "litellm>=1.82.6",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "z3-solver>=4.16.0.0",
 ]
 
 [build-system]
