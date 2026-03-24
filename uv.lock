@@ -258,6 +258,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "instructor" },
+    { name = "intentshield" },
     { name = "litellm" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -272,6 +273,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "instructor", specifier = ">=1.14.5" },
+    { name = "intentshield", specifier = ">=1.1.2" },
     { name = "litellm", specifier = ">=1.82.6" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
@@ -598,6 +600,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0b/ef/986d059424db204ed57b29d8c07fda35de2a2c72dee8ea7994bc90a6f767/instructor-1.14.5.tar.gz", hash = "sha256:fcb6432867f2fe4a5986e8bf389dcc64ed2ad4039a12a2dff85464e51c2f171a", size = 69950754, upload-time = "2026-01-29T14:18:50.454Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/45/04/e442e1356c97b03a6d30d2b462f7c0bdfbf207e75f6833815fd1225a75b4/instructor-1.14.5-py3-none-any.whl", hash = "sha256:2a5a31222b008c0989be1cc001e33a237f49506e80ac5833f6d36d7690bae7b1", size = 177445, upload-time = "2026-01-29T14:18:53.641Z" },
+]
+
+[[package]]
+name = "intentshield"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/cf/f9f1ca2d000ad0cb6cda25379d23d59d983c77b68ffddffa9a058062d11c/intentshield-1.1.2.tar.gz", hash = "sha256:30d790e93c9d6fbd3aa5edd0e23c687c67af9e022525ee2b8829ae3dc672996c", size = 30990, upload-time = "2026-03-20T09:44:44.795Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/28/79/13ceb36f581e65201d471a7aa83899213245fd8b144a8051b207098ca2f7/intentshield-1.1.2-py3-none-any.whl", hash = "sha256:4cf04da23b86fb60013258641672ec53c9ad44c68b5996d180bd761be728cf7e", size = 30850, upload-time = "2026-03-20T09:44:43.737Z" },
 ]
 
 [[package]]
