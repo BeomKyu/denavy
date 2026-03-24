@@ -32,7 +32,29 @@ class DenavySettings(BaseSettings):
     # ── LLM 설정 ──
     default_model: str = Field(
         default="gpt-4o-mini",
-        description="기본 LLM 모델명 (litellm 형식)"
+        description=(
+            "기본 LLM 모델명 (litellm 형식). 예:\n"
+            "  OpenAI:    gpt-4o, gpt-4o-mini\n"
+            "  Anthropic: claude-sonnet-4-20250514\n"
+            "  Ollama:    ollama/llama3\n"
+            "  Gemini:    gemini/gemini-2.0-flash"
+        ),
+    )
+    api_key: str = Field(
+        default="",
+        description=(
+            "LLM API 키. litellm이 자동으로 프로바이더에 매핑.\n"
+            "  OpenAI → OPENAI_API_KEY 환경변수로도 설정 가능\n"
+            "  Anthropic → ANTHROPIC_API_KEY"
+        ),
+    )
+    api_base: str = Field(
+        default="",
+        description=(
+            "LLM API 베이스 URL (선택). 예:\n"
+            "  Ollama: http://localhost:11434\n"
+            "  vLLM:   http://localhost:8000/v1"
+        ),
     )
 
     # ── 데이터 경로 ──

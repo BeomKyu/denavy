@@ -82,6 +82,37 @@ class ASTCodeAnalyzer:
         self._max_function_lines = max_function_lines
         self._forbidden_imports = forbidden_imports or []
 
+    # Protocol 호환 프로퍼티
+    @property
+    def root_cause_id(self) -> int:
+        return 2
+
+    @property
+    def target_defects(self) -> list[int]:
+        return [11]
+
+    def is_enabled(self) -> bool:
+        return True
+
+    def validate(self, input_data: Any) -> DefenseResult:
+        """RootCauseDefense Protocol 호환 validate.
+
+        input_data가 str이면 코드로 직접 검증,
+        dict이면 code_changes에서 코드 추출.
+        """
+        if isinstance(input_data, str):
+            return self.validate_code(input_data)
+        if isinstance(input_data, dict):
+            code = input_data.get("code", "")
+            if not code:
+                changes = input_data.get("code_changes", [])
+                if changes:
+                    code = "\n".join(
+                        c.get("new_content", "") for c in changes if c.get("new_content")
+                    )
+            return self.validate_code(code or "pass")
+        return self.validate_code("pass")
+
     def analyze(self, code: str, filename: str = "<agent>") -> ASTAnalysis:
         """Python 코드를 AST로 분석한다.
 
