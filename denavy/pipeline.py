@@ -228,11 +228,14 @@ class DenavyPipeline:
             module=FSMRouterDefense(router),
         ))
 
-        # Stage 2: 보안 검증 (RC9)
-        pipeline.add_stage(PipelineStage(
-            name="RC9_IntentShield",
-            module=IntentShieldDefense(),
-        ))
+        # Stage 2: 보안 검증 (RC9) — 싱글톤
+        try:
+            pipeline.add_stage(PipelineStage(
+                name="RC9_IntentShield",
+                module=IntentShieldDefense.get_shared_instance(),
+            ))
+        except Exception as e:
+            logger.warning(f"RC9 IntentShield 초기화 실패 (건너뜀): {e}")
 
         # Stage 3: 도구 화이트리스트 (RC4)
         pipeline.add_stage(PipelineStage(

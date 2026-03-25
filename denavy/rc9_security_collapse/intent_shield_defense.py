@@ -52,6 +52,11 @@ _ACTION_MAP: dict[str, str] = {
 }
 
 
+
+# 프로세스 단위 싱글톤 캐시
+_SHARED_INSTANCE: Any = None
+
+
 class IntentShieldDefense:
     """RC9: IntentShield 기반 이중 평면 격리 방어 모듈.
 
@@ -102,6 +107,23 @@ class IntentShieldDefense:
             "RC9 IntentShield 봉인 완료 "
             f"(data_dir={self._data_dir})"
         )
+
+    @classmethod
+    def get_shared_instance(
+        cls,
+        data_dir: str | Path = "data",
+        **kwargs: Any,
+    ) -> "IntentShieldDefense":
+        """프로세스 단위 싱글톤 인스턴스를 반환한다.
+
+        IntentShield의 _SELF_HASH 보호 때문에
+        같은 프로세스에서 여러 번 생성하면 TypeError가 발생.
+        이 메서드는 최초 1회만 인스턴스를 생성하고 이후 재사용.
+        """
+        global _SHARED_INSTANCE
+        if _SHARED_INSTANCE is None:
+            _SHARED_INSTANCE = cls(data_dir=data_dir, **kwargs)
+        return _SHARED_INSTANCE
 
     @property
     def root_cause_id(self) -> int:
