@@ -18,6 +18,7 @@ RC2-B: AST 기반 구조적 코드 분석 모듈
 from __future__ import annotations
 
 import ast
+import functools
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -113,6 +114,12 @@ class ASTCodeAnalyzer:
             return self.validate_code(code or "pass")
         return self.validate_code("pass")
 
+    @staticmethod
+    @functools.lru_cache(maxsize=128)
+    def _parse_code(code: str, filename: str) -> ast.AST:
+        """Python 소스 코드를 AST로 파싱한다 (캐싱 적용)."""
+        return ast.parse(code, filename=filename)
+
     def analyze(self, code: str, filename: str = "<agent>") -> ASTAnalysis:
         """Python 코드를 AST로 분석한다.
 
@@ -127,7 +134,7 @@ class ASTCodeAnalyzer:
 
         # 1. 파싱 가능 여부
         try:
-            tree = ast.parse(code, filename=filename)
+            tree = self._parse_code(code, filename)
         except SyntaxError as e:
             result.parseable = False
             result.parse_error = f"구문 오류({filename}:{e.lineno}): {e.msg}"
